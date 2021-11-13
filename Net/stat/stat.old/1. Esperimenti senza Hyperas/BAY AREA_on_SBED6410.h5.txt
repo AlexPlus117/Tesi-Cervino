@@ -1,0 +1,7 @@
+TOTAL OF EXAMPLES: 73481
+TOTAL OF 1: 34211
+TOTAL OF 0: 39270
+Metrics:
+overall_accuracy: 0.8725929151753514
+false_positives_num: 6418
+false_negatives_num: 2944

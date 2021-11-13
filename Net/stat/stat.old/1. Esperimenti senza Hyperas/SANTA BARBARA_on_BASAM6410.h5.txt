@@ -1,0 +1,10 @@
+TOTAL OF EXAMPLES: 728160
+TOTAL OF 1: 80418
+TOTAL OF 0: 52134
+METRICS:
+overall_accuracy: 0.7427349266702878
+false_positives_num: 66
+false_negatives_num: 34035
+CONFUSION MATRIX:
+[[18099 34035]
+ [   66 80352]]

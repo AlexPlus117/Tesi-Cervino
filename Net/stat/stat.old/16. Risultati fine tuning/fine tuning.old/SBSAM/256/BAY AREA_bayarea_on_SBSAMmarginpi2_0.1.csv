@@ -1,0 +1,3 @@
+total_examples, overall_accuracy, false_positives_num, false_negatives_num, true_negatives_num, true_positives_num, threshold
+300000, 0.877396878104544, 2230, 6779, 31981, 32491, 0.6533358
+300000, 0.8963813774989453, 1129, 6485, 33082, 32785, 0.6533358
