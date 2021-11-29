@@ -138,7 +138,7 @@ def labels_by_percentage(pseudo_dict, percentage):
     pseudo_distances = pseudo_dict["distances"]
     threshold = pseudo_dict["threshold"]
 
-    # selecting the indexes of the not-changed (N) pairs and of the changed (ones)
+    # selecting the indexes of the not-changed (N) pairs and of the changed ones (C)
     N = np.where(pseudo_distances <= threshold)
     C = np.where(pseudo_distances > threshold)
 

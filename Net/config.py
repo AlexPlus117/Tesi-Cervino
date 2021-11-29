@@ -6,7 +6,7 @@ from os import sep
     Paths --------------------------------------------------------------------------------------------------------------
 """
 # Path for the file containing the dataset configurations and the settings for the scripts
-DATA_CONFIG_PATH = "/content/drive/MyDrive/SiameseChangeDetection/Net/net.conf"
+DATA_CONFIG_PATH = "net.conf"
 
 # Path where the model are saved or stored
 MODEL_SAVE_PATH = "model" + sep

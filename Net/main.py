@@ -105,8 +105,8 @@ if __name__ == '__main__':
         # The model will be tuned fresh for each image
         # and each image must be extracted from the preprocessed matrix
         for lab in labels:
-            pairs = x_test[i:i+lab.size, :]
-            img_label = y_test[i:i+lab.size]
+            pairs = x_test[i:i + lab.size, :]
+            img_label = y_test[i:i + lab.size]
 
             # weights loading
             model.load_weights(config.MODEL_SAVE_PATH + model_name + ".h5")
@@ -135,10 +135,11 @@ if __name__ == '__main__':
                     # selecting the "percentage"*100% best pseudo-labels
 
                     percentage = float(parser["settings"].get("pseudo_percentage"))
-                    pseudo_qty = str(percentage*100)+"%"
+                    pseudo_qty = str(percentage * 100) + "%"
                     tic_extraction = time.time()
                     best_data, pseudo = pu.labels_by_percentage(pseudo_dict, percentage)
                     toc_extraction = time.time()
+
                 elif int(parser["settings"].get("fine_tuning")) == 2:
                     # selecting the best pseudo-labels by neighbourhood with "radius" radius
 
@@ -147,6 +148,22 @@ if __name__ == '__main__':
                     tic_extraction = time.time()
                     best_data, pseudo = pu.labels_by_neighborhood(pseudo_dict, radius)
                     toc_extraction = time.time()
+
+                elif int(parser["settings"].get("fine_tuning")) == 3:
+                    # selecting the "percentage"*100% best pseudo-labels and using real labels for remaining data
+
+                    percentage = float(parser["settings"].get("pseudo_percentage"))
+                    pseudo_qty = str(percentage * 100) + "%"
+                    tic_extraction = time.time()
+                    best_data, pseudo = pu.labels_by_percentage(pseudo_dict, percentage)
+                    toc_extraction = time.time()
+                    img_label = img_label.astype(int)
+                    label_indexes = np.arange(len(img_label))
+                    remaining_data = np.setdiff1d(label_indexes, best_data).astype(int)
+                    real_labels = img_label[remaining_data]
+                    best_data = np.concatenate([best_data, remaining_data])
+                    pseudo = np.concatenate([pseudo, real_labels])
+
                 else:
                     raise ValueError("Error: FINE TUNING CHOICE " + parser["settings"].get("fine_tuning")
                                      + " NOT IMPLEMENTED")
@@ -161,7 +178,7 @@ if __name__ == '__main__':
                                                                                   pairs[best_data], pseudo)
 
             # performing prediction and computing the elapsed time
-            print("Info: EXECUTING PREDICTION OF " + names[i] + " " + str(i+1) + "/" + str(len(labels)))
+            print("Info: EXECUTING PREDICTION OF " + names[i] + " " + str(i + 1) + "/" + str(len(labels)))
             tic_prediction = time.time()
             distances = model.predict([pairs[:, 0], pairs[:, 1]])
             toc_prediction = time.time()
@@ -186,7 +203,7 @@ if __name__ == '__main__':
             metrics = s.get_metrics(cm)
 
             # 3. Opening a new file
-            print("Info: SAVING THE " + str(i+1) + "° RESULT")
+            print("Info: SAVING THE " + str(i + 1) + "° RESULT")
             file = open(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
                         + ".csv", "w")
 
