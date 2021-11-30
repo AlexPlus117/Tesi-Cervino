@@ -164,6 +164,21 @@ if __name__ == '__main__':
                     best_data = np.concatenate([best_data, remaining_data])
                     pseudo = np.concatenate([pseudo, real_labels])
 
+                elif int(parser["settings"].get("fine_tuning")) == 4:
+                    # selecting only discarded real labels
+
+                    percentage = float(parser["settings"].get("pseudo_percentage"))
+                    pseudo_qty = str(percentage * 100) + "%"
+                    tic_extraction = time.time()
+                    best_data, pseudo = pu.labels_by_percentage(pseudo_dict, percentage)
+                    toc_extraction = time.time()
+                    img_label = img_label.astype(int)
+                    label_indexes = np.arange(len(img_label))
+                    remaining_data = np.setdiff1d(label_indexes, best_data).astype(int)
+                    real_labels = img_label[remaining_data]
+                    best_data = remaining_data
+                    pseudo = real_labels
+
                 else:
                     raise ValueError("Error: FINE TUNING CHOICE " + parser["settings"].get("fine_tuning")
                                      + " NOT IMPLEMENTED")
