@@ -22,6 +22,8 @@ from hyperopt import STATUS_OK, Trials, tpe, STATUS_FAIL
 from sklearn.model_selection import train_test_split
 from skimage.filters import threshold_otsu
 
+tf.random.set_seed(43)
+
 
 def data():
     """
@@ -83,7 +85,6 @@ def hyperparam_search(train_set, train_labels, test_set, test_labels, distance_f
     config.max_dropout = float(hyperas_sett.get("max_dropout"))
 
     bs = config.batch_size
-
 
     # optimization function
     print("Info: BEGINNING SEARCH...")
@@ -482,7 +483,7 @@ def fine_tuning(model, batch_size, x_retrain, pseudo_labels):
     ]
 
     # generating the validation set
-    x_train, x_val, y_train, y_val = train_test_split(x_retrain, pseudo_labels, stratify=pseudo_labels,
+    x_train, x_val, y_train, y_val = train_test_split(x_retrain, pseudo_labels, stratify=pseudo_labels, random_state=43,
                                                       test_size=config.VAL_SPLIT)
 
     # fitting the model

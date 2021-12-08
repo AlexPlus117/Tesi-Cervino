@@ -11,6 +11,7 @@ import predutils as pu
 import sklearn.metrics as skm
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 
 # single imports
 from skimage.filters import threshold_otsu
@@ -106,13 +107,15 @@ if __name__ == '__main__':
         # and each image must be extracted from the preprocessed matrix
         for lab in labels:
             pairs = x_test[i:i + lab.size, :]
-            img_label = y_test[i:i + lab.size]
+            img_label = y_test[i:i + lab.size].astype(int)
 
             # weights loading
             model.load_weights(config.MODEL_SAVE_PATH + model_name + ".h5")
 
             # Fine tuning phase
-            if int(parser["settings"].get("fine_tuning")) >= 0:
+            ft_conf = int(parser["settings"].get("fine_tuning"))
+
+            if ft_conf >= 0:
                 # loading the dictionary containing distances, threshold and shape
                 pseudo_file = open(parser[test_set].get("pseudoPath") + os.sep + names[i] + ".pickle", "rb")
                 pseudo_dict = pickle.load(pseudo_file)
@@ -123,61 +126,71 @@ if __name__ == '__main__':
                                         config.UNCHANGED_LABEL)
                 pseudo_truth = pu.spatial_correction(np.reshape(pseudo_truth, pseudo_dict["shape"])).ravel()
 
-                if int(parser["settings"].get("fine_tuning")) == 0:
+                if ft_conf == 0:
                     # selecting all the pseudo-labels
 
                     pseudo_qty = "all"
                     toc_extraction = 0
                     tic_extraction = 0
-                    best_data = np.arange(0, len(pseudo_dict["distances"]))
-                    pseudo = pseudo_truth
-                elif int(parser["settings"].get("fine_tuning")) == 1:
+                    data_used = np.arange(0, len(pseudo_dict["distances"]))
+                    labels_used = pseudo_truth
+
+                elif ft_conf == 1:
                     # selecting the "percentage"*100% best pseudo-labels
 
                     percentage = float(parser["settings"].get("pseudo_percentage"))
                     pseudo_qty = str(percentage * 100) + "%"
                     tic_extraction = time.time()
-                    best_data, pseudo = pu.labels_by_percentage(pseudo_dict, percentage)
+                    data_used, labels_used = pu.pseudo_by_percentage(pseudo_dict, percentage)
                     toc_extraction = time.time()
 
-                elif int(parser["settings"].get("fine_tuning")) == 2:
+                elif ft_conf == 2:
                     # selecting the best pseudo-labels by neighbourhood with "radius" radius
 
                     radius = int(parser["settings"].get("pseudo_radius"))
                     pseudo_qty = "r=" + str(radius)
                     tic_extraction = time.time()
-                    best_data, pseudo = pu.labels_by_neighborhood(pseudo_dict, radius)
+                    data_used, labels_used = pu.pseudo_by_neighborhood(pseudo_dict, radius)
                     toc_extraction = time.time()
 
-                elif int(parser["settings"].get("fine_tuning")) == 3:
+                elif ft_conf == 3:
                     # selecting the "percentage"*100% best pseudo-labels and using real labels for remaining data
 
                     percentage = float(parser["settings"].get("pseudo_percentage"))
                     pseudo_qty = str(percentage * 100) + "%"
+                    real_qty = str(round(1 - percentage, 1) * 100) + "%"
                     tic_extraction = time.time()
-                    best_data, pseudo = pu.labels_by_percentage(pseudo_dict, percentage)
+                    data_used, labels_used = pu.pseudo_plus_labels_by_percentage(pseudo_dict, percentage, img_label)
                     toc_extraction = time.time()
-                    img_label = img_label.astype(int)
-                    label_indexes = np.arange(len(img_label))
-                    remaining_data = np.setdiff1d(label_indexes, best_data).astype(int)
-                    real_labels = img_label[remaining_data]
-                    best_data = np.concatenate([best_data, remaining_data])
-                    pseudo = np.concatenate([pseudo, real_labels])
 
-                elif int(parser["settings"].get("fine_tuning")) == 4:
-                    # selecting only discarded real labels
+                elif ft_conf == 4:
+                    # selecting only real labels discarded from the extraction of pseudo labels by percentage
 
                     percentage = float(parser["settings"].get("pseudo_percentage"))
                     pseudo_qty = str(percentage * 100) + "%"
+                    real_qty = str(round(1 - percentage, 1) * 100) + "%"
                     tic_extraction = time.time()
-                    best_data, pseudo = pu.labels_by_percentage(pseudo_dict, percentage)
+                    data_used, labels_used = pu.labels_by_percentage(pseudo_dict, percentage, img_label)
                     toc_extraction = time.time()
-                    img_label = img_label.astype(int)
-                    label_indexes = np.arange(len(img_label))
-                    remaining_data = np.setdiff1d(label_indexes, best_data).astype(int)
-                    real_labels = img_label[remaining_data]
-                    best_data = remaining_data
-                    pseudo = real_labels
+
+                elif ft_conf == 5:
+                    # selecting the best pseudo-labels by neighbourhood with "radius" radius and using real labels for
+                    # remaining data
+
+                    radius = int(parser["settings"].get("pseudo_radius"))
+                    pseudo_qty = "r=" + str(radius)
+                    tic_extraction = time.time()
+                    data_used, labels_used = pu.pseudo_plus_labels_by_neighborhood(pseudo_dict, img_label, radius)
+                    toc_extraction = time.time()
+
+                elif ft_conf == 6:
+                    # selecting only real labels discarded from the extraction of pseudo labels by neighborhood
+
+                    radius = int(parser["settings"].get("pseudo_radius"))
+                    pseudo_qty = "r=" + str(radius)
+                    tic_extraction = time.time()
+                    data_used, labels_used = pu.labels_by_neighborhood(pseudo_dict, img_label, radius)
+                    toc_extraction = time.time()
 
                 else:
                     raise ValueError("Error: FINE TUNING CHOICE " + parser["settings"].get("fine_tuning")
@@ -186,11 +199,17 @@ if __name__ == '__main__':
                 # computing the extraction time of the pseudo-labels
                 extraction_time = toc_extraction - tic_extraction
 
+                # shuffle delle coppie di pixel e delle labels
+                taken_samples = np.c_[data_used, labels_used]
+                np.random.shuffle(taken_samples)
+                data_used = taken_samples[:, 0].astype(int)
+                labels_used = taken_samples[:, 1].astype(int)
+
                 # performing fine tuning
                 print("Info: PERFORMING FINE TUNING...")
                 model, loss, val_loss, val_acc, epochs, fine_time = s.fine_tuning(model,
                                                                                   parameters['batch_size'],
-                                                                                  pairs[best_data], pseudo)
+                                                                                  pairs[data_used], labels_used)
 
             # performing prediction and computing the elapsed time
             print("Info: EXECUTING PREDICTION OF " + names[i] + " " + str(i + 1) + "/" + str(len(labels)))
@@ -208,8 +227,21 @@ if __name__ == '__main__':
             # print the heatmap0
             im = plt.imshow(distances.reshape(lab.shape), cmap='hot', interpolation='nearest')
             plt.colorbar()
-            plt.savefig(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
-                        + "_heatmap.png", dpi=300, bbox_inches='tight')
+            if ft_conf <= 2:
+                plt.savefig(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
+                            + "_pseudo" + "_heatmap.png", dpi=300, bbox_inches='tight')
+            elif ft_conf == 3:
+                plt.savefig(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
+                            + "_pseudo_" + real_qty + "_real" + "_heatmap.png", dpi=300, bbox_inches='tight')
+            elif ft_conf == 4:
+                plt.savefig(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + real_qty
+                            + "_real" + "_heatmap.png", dpi=300, bbox_inches='tight')
+            elif ft_conf == 5:
+                plt.savefig(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
+                            + "_pseudo" + "_real" + "_heatmap.png", dpi=300, bbox_inches='tight')
+            elif ft_conf == 6:
+                plt.savefig(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
+                            + "_real" + "_heatmap.png", dpi=300, bbox_inches='tight')
 
             # 1. confusion matrix
             cm = skm.confusion_matrix(img_label, prediction, labels=[config.CHANGED_LABEL, config.UNCHANGED_LABEL])
@@ -219,8 +251,21 @@ if __name__ == '__main__':
 
             # 3. Opening a new file
             print("Info: SAVING THE " + str(i + 1) + "° RESULT")
-            file = open(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
-                        + ".csv", "w")
+            if ft_conf <= 2:
+                file = open(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
+                            + "_pseudo" + ".csv", "w")
+            elif ft_conf == 3:
+                file = open(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
+                            + "_pseudo_" + real_qty + "_real" + ".csv", "w")
+            elif ft_conf == 4:
+                file = open(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + real_qty
+                            + "_real" + ".csv", "w")
+            elif ft_conf == 5:
+                file = open(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
+                            + "_pseudo" + "_real" + ".csv", "w")
+            elif ft_conf == 6:
+                file = open(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
+                            + "_real" + ".csv", "w")
 
             # 4. printing column names, number of examples and the used threshold
             file.write("total_examples, threshold")
@@ -250,8 +295,21 @@ if __name__ == '__main__':
             ground_t = dp.refactor_labels(lab, parser[test_set])
             # c. the maps are plotted with the appropriate function
             fig = pu.plot_maps(lmap, ground_t)
-            fig.savefig(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
-                        + ".png", dpi=300, bbox_inches='tight')
+            if ft_conf <= 2:
+                fig.savefig(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
+                            + "_pseudo" + ".png", dpi=300, bbox_inches='tight')
+            elif ft_conf == 3:
+                fig.savefig(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
+                            + "_pseudo_" + real_qty + "_real" + ".png", dpi=300, bbox_inches='tight')
+            elif ft_conf == 4:
+                fig.savefig(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + real_qty
+                            + "_real" + ".png", dpi=300, bbox_inches='tight')
+            elif ft_conf == 5:
+                fig.savefig(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
+                            + "_pseudo" + "_real" + ".png", dpi=300, bbox_inches='tight')
+            elif ft_conf == 6:
+                fig.savefig(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
+                            + "_real" + ".png", dpi=300, bbox_inches='tight')
 
             print("Info: EXECUTING SPATIAL CORRECTION...")
             # replying steps 1, 2, 3, 5 and 6 after the spatial correction
@@ -285,7 +343,20 @@ if __name__ == '__main__':
             file.close()
 
             scfig = pu.plot_maps(corrected_map, ground_t)
-            scfig.savefig(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
-                          + "_corrected.png", dpi=300, bbox_inches='tight')
+            if ft_conf <= 2:
+                scfig.savefig(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
+                              + "_pseudo" + "_corrected.png", dpi=300, bbox_inches='tight')
+            elif ft_conf == 3:
+                scfig.savefig(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
+                              + "_pseudo_" + real_qty + "_real" + "_corrected.png", dpi=300, bbox_inches='tight')
+            elif ft_conf == 4:
+                scfig.savefig(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + real_qty
+                              + "_real" + "_corrected.png", dpi=300, bbox_inches='tight')
+            elif ft_conf == 5:
+                scfig.savefig(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
+                              + "_pseudo" + "_real" + "_corrected.png", dpi=300, bbox_inches='tight')
+            elif ft_conf == 6:
+                scfig.savefig(config.STAT_PATH + test_set + "_" + names[i] + "_on_" + model_name + "_" + pseudo_qty
+                              + "_real" + "_corrected.png", dpi=300, bbox_inches='tight')
 
             i = i + lab.size

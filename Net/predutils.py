@@ -24,6 +24,8 @@ import dataprocessing as dp
 import siamese as s
 import sklearn.metrics as skm
 
+tf.random.set_seed(43)
+
 
 def spatial_correction(prediction, radius=3):
     """
@@ -115,7 +117,7 @@ def pseudo_labels(first_img, second_img, dist_function, return_distances=False):
     return returned_map, threshold
 
 
-def labels_by_percentage(pseudo_dict, percentage):
+def pseudo_by_percentage(pseudo_dict, percentage):
     """
     Function extracting the position of best pixel pairs according to their distance. The extraction is stratified with
     respect to the complete collection of distances, so that the resulting set would contain the percentage% of the
@@ -128,9 +130,10 @@ def labels_by_percentage(pseudo_dict, percentage):
     :param percentage: float value in ]0,1] indicating the percentage of the best pairs to be extracted
 
     :return: a 1 dim array containing the position of extracted pixel pairs and a 1-dim containing the labels
-            warning: the returned arrays are ordered so that the closest pairs are returned ordered before the farthest
-            pairs (which are also ordered), so a shuffle before usage might be necessary
+             warning: the returned arrays are ordered so that the closest pairs are returned ordered before the
+             farthest pairs (which are also ordered), so a shuffle before usage might be necessary
     """
+
     # check of percentage value
     if percentage <= 0 or percentage > 1:
         raise ValueError("ERROR: percentage must be a float in ]0,1]")
@@ -152,18 +155,64 @@ def labels_by_percentage(pseudo_dict, percentage):
     cmatrix = cmatrix[(-cmatrix)[:, 0].argsort()]
 
     # generating a new array of labels for the selected data.
-    labels = np.concatenate((np.full(int(percentage*len(nmatrix)), config.UNCHANGED_LABEL),
-                            np.full(int(percentage*len(cmatrix)), config.CHANGED_LABEL)))
+    labels = np.concatenate((np.full(int(percentage * len(nmatrix)), config.UNCHANGED_LABEL),
+                             np.full(int(percentage * len(cmatrix)), config.CHANGED_LABEL)))
 
     # concatenation of the selected pairs (first unchanged, then changed)
     # the selection is given by extracting the desired percentage of ordered indexes from each class
-    selected_data = np.concatenate((nmatrix[:int(percentage*len(nmatrix)), 1].astype(int),
-                                   cmatrix[:int(percentage*len(cmatrix)), 1].astype(int)))
+    selected_data = np.concatenate((nmatrix[:int(percentage * len(nmatrix)), 1].astype(int),
+                                    cmatrix[:int(percentage * len(cmatrix)), 1].astype(int)))
 
     return selected_data, labels
 
 
-def labels_by_neighborhood(pseudo_dict, radius=3):
+def pseudo_plus_labels_by_percentage(pseudo_dict, percentage, img_label):
+    """
+    Function extracting the position of best pixel pairs and their respective pseudo labels based on percentage and
+    using real labels for remaining pixel pairs
+
+    :param pseudo_dict: a dictionary containing the pre-computed distances of the pairs, the threshold for
+                        label-conversion and original shape of the images. Basically, it's the dumped result of
+                        the "main" script
+    :param percentage: float value in ]0,1] indicating the percentage of the best pairs to be extracted
+    :param img_label: a 1-dim array containing all the real labels of the pixel pairs
+
+    :return: a 1 dim array containing the position of extracted pixel pairs + remaining ones and a 1-dim containing
+             pseudo labels + real labels
+    """
+
+    best_data, pseudo = pseudo_by_percentage(pseudo_dict, percentage)
+    label_indexes = np.arange(len(img_label))
+    remaining_data = np.setdiff1d(label_indexes, best_data).astype(int)
+    real_labels = img_label[remaining_data]
+    data_used = np.concatenate([best_data, remaining_data])
+    labels_used = np.concatenate([pseudo, real_labels])
+
+    return data_used, labels_used
+
+
+def labels_by_percentage(pseudo_dict, percentage, img_label):
+    """
+    Function using only real labels for pixel pairs discarded by the extraction of pseudo labels by percentage
+
+    :param pseudo_dict: a dictionary containing the pre-computed distances of the pairs, the threshold for
+                        label-conversion and original shape of the images. Basically, it's the dumped result of
+                        the "main" script
+    :param percentage: float value in ]0,1] indicating the percentage of the best pairs to be extracted
+    :param img_label: a 1-dim array containing all the real labels of the pixel pairs
+
+    :return: a 1 dim array containing the position of not extracted pixel pairs and a 1-dim containing the real labels
+    """
+
+    best_data, pseudo = pseudo_by_percentage(pseudo_dict, percentage)
+    label_indexes = np.arange(len(img_label))
+    data_used = np.setdiff1d(label_indexes, best_data).astype(int)
+    labels_used = img_label[data_used]
+
+    return data_used, labels_used
+
+
+def pseudo_by_neighborhood(pseudo_dict, radius=3):
     """
     Function extracting the position of the best pixel pairs according to their neighborhood.
     The extraction is performed by excluding the pairs surrounded with at least one label different from the one
@@ -176,7 +225,6 @@ def labels_by_neighborhood(pseudo_dict, radius=3):
     :param radius: integer value indicating the radius of the square patch of the neighbouring pixels
 
     :return: a 1 dim array containing the position of the extracted pixel pairs and a 1-dim containing the labels
-
     """
 
     if radius < 1:
@@ -184,7 +232,7 @@ def labels_by_neighborhood(pseudo_dict, radius=3):
 
     # converting distances in labels and performing correction
     pseudo_lab = np.where(np.reshape(pseudo_dict["distances"], pseudo_dict["shape"]) > pseudo_dict["threshold"],
-                                     config.CHANGED_LABEL, config.UNCHANGED_LABEL)
+                          config.CHANGED_LABEL, config.UNCHANGED_LABEL)
     pseudo_lab = spatial_correction(np.reshape(pseudo_lab, pseudo_dict["shape"]))
 
     selected_data = []
@@ -201,9 +249,55 @@ def labels_by_neighborhood(pseudo_dict, radius=3):
             counter = Counter(pseudo_lab[upper_x:lower_x, upper_y:lower_y].ravel())
             counts = counter.most_common()
             if len(counts) == 1:
-                selected_data.append(row*max_c + col)
+                selected_data.append(row * max_c + col)
                 label_list.append(pseudo_lab[row, col])
     return np.asarray(selected_data), np.asarray(label_list)
+
+
+def pseudo_plus_labels_by_neighborhood(pseudo_dict, img_label, radius=3):
+    """
+    Function extracting the position of the best pixel pairs and their respective pseudo labels based on neighborhood
+    and using real labels for remaining pixel pairs
+
+    :param pseudo_dict: a dictionary containing the pre-computed distances of the pairs, the threshold for
+                        label-conversion and original shape of the images. Basically, it's the dumped result of
+                        the "main" script
+    :param img_label: a 1-dim array containing all the real labels of the pixel pairs
+    :param radius: integer value indicating the radius of the square patch of the neighbouring pixels
+
+    :return: a 1 dim array containing the position of extracted pixel pairs + remaining ones and a 1-dim containing
+             pseudo labels + real labels
+    """
+
+    best_data, pseudo = pseudo_by_neighborhood(pseudo_dict, radius)
+    label_indexes = np.arange(len(img_label))
+    remaining_data = np.setdiff1d(label_indexes, best_data).astype(int)
+    real_labels = img_label[remaining_data]
+    data_used = np.concatenate([best_data, remaining_data])
+    labels_used = np.concatenate([pseudo, real_labels])
+
+    return data_used, labels_used
+
+
+def labels_by_neighborhood(pseudo_dict, img_label, radius=3):
+    """
+    Function using only real labels for pixel pairs discarded by the extraction of pseudo labels by neighborhood
+
+    :param pseudo_dict: a dictionary containing the pre-computed distances of the pairs, the threshold for
+                        label-conversion and original shape of the images. Basically, it's the dumped result of
+                        the "main" script
+    :param img_label: a 1-dim array containing all the real labels of the pixel pairs
+    :param radius: integer value indicating the radius of the square patch of the neighbouring pixels
+
+    :return: a 1 dim array containing the position of not extracted pixel pairs and a 1-dim containing the labels
+    """
+
+    best_data, pseudo = pseudo_by_neighborhood(pseudo_dict, radius)
+    label_indexes = np.arange(len(img_label))
+    data_used = np.setdiff1d(label_indexes, best_data).astype(int)
+    labels_used = img_label[data_used]
+
+    return data_used, labels_used
 
 
 """
@@ -249,18 +343,18 @@ if __name__ == '__main__':
     i = 0
     for lab in labels:
         # selecting a image from the list of pairs
-        pro_a = processed_ab[i:i+lab.size, 0]
-        pro_b = processed_ab[i:i+lab.size, 1]
-        pro_lab = processed_lab[i:i+lab.size]
+        pro_a = processed_ab[i:i + lab.size, 0]
+        pro_b = processed_ab[i:i + lab.size, 1]
+        pro_lab = processed_lab[i:i + lab.size]
 
         # generating distances
-        print("Info: GENERATING DISTANCES OF " + names[i] + " " + str(i+1) + "/" + str(len(labels)))
+        print("Info: GENERATING DISTANCES OF " + names[i] + " " + str(i + 1) + "/" + str(len(labels)))
         tic = time.time()
         dist, thresh = pseudo_labels(pro_a, pro_b, distance_func, return_distances=True)
         toc = time.time()
 
         # dumping values in a file
-        print("Info: SAVING DISTANCES OF " + names[i] + " " + str(i+1) + "/" + str(len(labels)))
+        print("Info: SAVING DISTANCES OF " + names[i] + " " + str(i + 1) + "/" + str(len(labels)))
         dist_file = open(parser[dataset].get("pseudoPath") + sep + names[i] + ".pickle", "wb")
         pickle.dump({'threshold': thresh, 'distances': dist, 'shape': lab.shape}, dist_file, pickle.HIGHEST_PROTOCOL)
         dist_file.close()
@@ -290,7 +384,7 @@ if __name__ == '__main__':
         # printing metrics
         for k in metrics.keys():
             file.write(", " + str(metrics[k]))
-        file.write(", " + str(toc-tic))
+        file.write(", " + str(toc - tic))
 
         # saving the map plot
         pseudo_map = np.reshape(pseudo, lab.shape)
@@ -323,4 +417,4 @@ if __name__ == '__main__':
         scfig.savefig(config.STAT_PATH + dataset + "_" + names[i] + "_" + parser["settings"].get("distance")
                       + "_pseudo_rescaling_" + str(rescaling) + "_corrected.png", dpi=300, bbox_inches='tight')
 
-        i = i+lab.size
+        i = i + lab.size
