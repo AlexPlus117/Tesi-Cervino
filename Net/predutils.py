@@ -3,7 +3,6 @@ import config
 
 # aliases
 import tensorflow as tf
-
 import matplotlib.pyplot as plt
 import matplotlib.colors as pltc
 
@@ -181,14 +180,44 @@ def pseudo_plus_labels_by_percentage(pseudo_dict, percentage, img_label):
              pseudo labels + real labels
     """
 
-    best_data, pseudo = pseudo_by_percentage(pseudo_dict, percentage)
-    label_indexes = np.arange(len(img_label))
-    remaining_data = np.setdiff1d(label_indexes, best_data).astype(int)
-    real_labels = img_label[remaining_data]
-    data_used = np.concatenate([best_data, remaining_data])
-    labels_used = np.concatenate([pseudo, real_labels])
+    # check of percentage value
+    if percentage <= 0 or percentage > 1:
+        raise ValueError("ERROR: percentage must be a float in ]0,1]")
 
-    return data_used, labels_used
+    pseudo_distances = pseudo_dict["distances"]
+    threshold = pseudo_dict["threshold"]
+
+    # selecting the indexes of the not-changed (N) pairs and of the changed ones (C)
+    N = np.where(pseudo_distances <= threshold)
+    C = np.where(pseudo_distances > threshold)
+
+    # packing the distances of not-changed and changed pairs with the respective position in the array
+    nmatrix = np.c_[pseudo_distances[N], N[0]]
+    cmatrix = np.c_[pseudo_distances[C], C[0]]
+
+    # ordering the values in ascending order for unchanged pairs and descending for changed ones
+    # extreme values = more confidence in the respective labeling
+    nmatrix = nmatrix[nmatrix[:, 0].argsort()]
+    cmatrix = cmatrix[(-cmatrix)[:, 0].argsort()]
+
+    # saving discarded data to be labeled with real labels
+    n_discarded_data = nmatrix[int(percentage * len(nmatrix)):, 1].astype(int)
+    c_discarded_data = cmatrix[int(percentage * len(cmatrix)):, 1].astype(int)
+
+    # generating a new array of labels for all the data.
+    labels = np.concatenate((np.full(int(percentage * len(nmatrix)), config.UNCHANGED_LABEL),
+                             img_label[n_discarded_data],
+                             np.full(int(percentage * len(cmatrix)), config.CHANGED_LABEL),
+                             img_label[c_discarded_data]))
+
+    # concatenation of the selected pairs (first unchanged, then changed) and discarded ones
+    # the selection is given by extracting the desired percentage of ordered indexes from each class
+    selected_data = np.concatenate((nmatrix[:int(percentage * len(nmatrix)), 1].astype(int),
+                                    n_discarded_data,
+                                    cmatrix[:int(percentage * len(cmatrix)), 1].astype(int),
+                                    c_discarded_data))
+
+    return selected_data, labels
 
 
 def labels_by_percentage(pseudo_dict, percentage, img_label):
@@ -204,12 +233,37 @@ def labels_by_percentage(pseudo_dict, percentage, img_label):
     :return: a 1 dim array containing the position of not extracted pixel pairs and a 1-dim containing the real labels
     """
 
-    best_data, pseudo = pseudo_by_percentage(pseudo_dict, percentage)
-    label_indexes = np.arange(len(img_label))
-    data_used = np.setdiff1d(label_indexes, best_data).astype(int)
-    labels_used = img_label[data_used]
+    # check of percentage value
+    if percentage <= 0 or percentage > 1:
+        raise ValueError("ERROR: percentage must be a float in ]0,1]")
 
-    return data_used, labels_used
+    pseudo_distances = pseudo_dict["distances"]
+    threshold = pseudo_dict["threshold"]
+
+    # selecting the indexes of the not-changed (N) pairs and of the changed ones (C)
+    N = np.where(pseudo_distances <= threshold)
+    C = np.where(pseudo_distances > threshold)
+
+    # packing the distances of not-changed and changed pairs with the respective position in the array
+    nmatrix = np.c_[pseudo_distances[N], N[0]]
+    cmatrix = np.c_[pseudo_distances[C], C[0]]
+
+    # ordering the values in ascending order for unchanged pairs and descending for changed ones
+    # extreme values = more confidence in the respective labeling
+    nmatrix = nmatrix[nmatrix[:, 0].argsort()]
+    cmatrix = cmatrix[(-cmatrix)[:, 0].argsort()]
+
+    # saving discarded data to be labeled with real labels
+    n_discarded_data = nmatrix[int(percentage * len(nmatrix)):, 1].astype(int)
+    c_discarded_data = cmatrix[int(percentage * len(cmatrix)):, 1].astype(int)
+
+    # generating a new array of real labels for the discarded data.
+    labels = np.concatenate((img_label[n_discarded_data], img_label[c_discarded_data]))
+
+    # concatenation of the discarded pairs
+    selected_data = np.concatenate((n_discarded_data, c_discarded_data))
+
+    return selected_data, labels
 
 
 def pseudo_by_neighborhood(pseudo_dict, radius=3):
@@ -251,6 +305,7 @@ def pseudo_by_neighborhood(pseudo_dict, radius=3):
             if len(counts) == 1:
                 selected_data.append(row * max_c + col)
                 label_list.append(pseudo_lab[row, col])
+
     return np.asarray(selected_data), np.asarray(label_list)
 
 
@@ -269,12 +324,38 @@ def pseudo_plus_labels_by_neighborhood(pseudo_dict, img_label, radius=3):
              pseudo labels + real labels
     """
 
-    best_data, pseudo = pseudo_by_neighborhood(pseudo_dict, radius)
-    label_indexes = np.arange(len(img_label))
-    remaining_data = np.setdiff1d(label_indexes, best_data).astype(int)
+    if radius < 1:
+        raise ValueError("ERROR: radius must be a int >=1")
+
+    # converting distances in labels and performing correction
+    pseudo_lab = np.where(np.reshape(pseudo_dict["distances"], pseudo_dict["shape"]) > pseudo_dict["threshold"],
+                          config.CHANGED_LABEL, config.UNCHANGED_LABEL)
+    pseudo_lab = spatial_correction(np.reshape(pseudo_lab, pseudo_dict["shape"]))
+
+    selected_data = []
+    pseudo_list = []
+    max_r, max_c = pseudo_lab.shape
+    for row in range(max_r):
+        for col in range(max_c):
+            upper_x = max(0, row - (radius - 1))
+            upper_y = max(0, col - (radius - 1))
+            # note: the lower bound for the moving "kernel" must be one unit greater for each coordinate than the
+            # actual lower bound, since it will be discarded as the last index for the slices
+            lower_x = min(max_r, row + radius)
+            lower_y = min(max_c, col + radius)
+            counter = Counter(pseudo_lab[upper_x:lower_x, upper_y:lower_y].ravel())
+            counts = counter.most_common()
+            if len(counts) == 1:
+                selected_data.append(row * max_c + col)
+                pseudo_list.append(pseudo_lab[row, col])
+
+    selected_data = np.asarray(selected_data)
+    pseudo_list = np.asarray(pseudo_list)
+    real_indexes = np.arange(len(img_label))
+    remaining_data = np.setdiff1d(real_indexes, selected_data).astype(int)
     real_labels = img_label[remaining_data]
-    data_used = np.concatenate([best_data, remaining_data])
-    labels_used = np.concatenate([pseudo, real_labels])
+    data_used = np.concatenate([selected_data, remaining_data])
+    labels_used = np.concatenate([pseudo_list, real_labels])
 
     return data_used, labels_used
 
@@ -292,9 +373,32 @@ def labels_by_neighborhood(pseudo_dict, img_label, radius=3):
     :return: a 1 dim array containing the position of not extracted pixel pairs and a 1-dim containing the labels
     """
 
-    best_data, pseudo = pseudo_by_neighborhood(pseudo_dict, radius)
-    label_indexes = np.arange(len(img_label))
-    data_used = np.setdiff1d(label_indexes, best_data).astype(int)
+    if radius < 1:
+        raise ValueError("ERROR: radius must be a int >=1")
+
+    # converting distances in labels and performing correction
+    pseudo_lab = np.where(np.reshape(pseudo_dict["distances"], pseudo_dict["shape"]) > pseudo_dict["threshold"],
+                          config.CHANGED_LABEL, config.UNCHANGED_LABEL)
+    pseudo_lab = spatial_correction(np.reshape(pseudo_lab, pseudo_dict["shape"]))
+
+    selected_data = []
+    max_r, max_c = pseudo_lab.shape
+    for row in range(max_r):
+        for col in range(max_c):
+            upper_x = max(0, row - (radius - 1))
+            upper_y = max(0, col - (radius - 1))
+            # note: the lower bound for the moving "kernel" must be one unit greater for each coordinate than the
+            # actual lower bound, since it will be discarded as the last index for the slices
+            lower_x = min(max_r, row + radius)
+            lower_y = min(max_c, col + radius)
+            counter = Counter(pseudo_lab[upper_x:lower_x, upper_y:lower_y].ravel())
+            counts = counter.most_common()
+            if len(counts) == 1:
+                selected_data.append(row * max_c + col)
+
+    selected_data = np.asarray(selected_data)
+    real_indexes = np.arange(len(img_label))
+    data_used = np.setdiff1d(real_indexes, selected_data).astype(int)
     labels_used = img_label[data_used]
 
     return data_used, labels_used

@@ -11,7 +11,6 @@ import predutils as pu
 import sklearn.metrics as skm
 import numpy as np
 import matplotlib.pyplot as plt
-import pandas as pd
 
 # single imports
 from skimage.filters import threshold_otsu
