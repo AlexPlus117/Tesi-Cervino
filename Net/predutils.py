@@ -23,6 +23,7 @@ import dataprocessing as dp
 import siamese as s
 import sklearn.metrics as skm
 
+np.random.seed(43)
 tf.random.set_seed(43)
 
 

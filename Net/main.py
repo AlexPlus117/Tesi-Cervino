@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 # single imports
 from skimage.filters import threshold_otsu
 
+np.random.seed(43)
+
 """
     Main script for training and testing a Siamese Net Model.
         - If "training"==True in net.conf, the training routine is executed.

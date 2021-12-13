@@ -22,6 +22,7 @@ from hyperopt import STATUS_OK, Trials, tpe, STATUS_FAIL
 from sklearn.model_selection import train_test_split
 from skimage.filters import threshold_otsu
 
+np.random.seed(43)
 tf.random.set_seed(43)
 
 
@@ -231,7 +232,7 @@ def siamese_model(train_set, train_labels, test_set, test_labels, score_function
     ]
 
     # Generating the validation set
-    x_train, x_val, y_train, y_val = train_test_split(train_set, train_labels, stratify=train_labels,
+    x_train, x_val, y_train, y_val = train_test_split(train_set, train_labels, stratify=train_labels, random_state=43,
                                                       test_size=config.VAL_SPLIT)
 
     tic = time.time()
