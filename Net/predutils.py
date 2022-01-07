@@ -117,7 +117,41 @@ def pseudo_labels(first_img, second_img, dist_function, return_distances=False):
     return returned_map, threshold
 
 
-def pseudo_by_percentage(pseudo_dict, percentage):
+def labels_by_percentage_siamese(model, pairs, img_label, percentage):
+    """
+    Function that extracts the most uncertain pixel pairs that are closest to the threshold and assigns the
+    corresponding real labels for fine tuning
+
+    :param model: trained model used to predict distances for the pixel pairs of the test set
+
+    :param pairs: pixel pairs of the test set
+
+    :param img_label: real labels of the test set
+
+    :param percentage: float value in ]0,1] indicating the percentage of the top uncertain pairs to be extracted
+
+    :return: a 1 dim array containing the position of extracted pixel pairs and a 1-dim containing the corresponding
+             labels
+    """
+
+    # performing prediction
+    distances = model.predict([pairs[:, 0], pairs[:, 1]])
+
+    # computing threshold
+    threshold = threshold_otsu(distances)
+
+    # sorting distances from threshold in ascending order
+    dist_from_thresh = abs(distances - threshold)
+    sorted_indexes = np.argsort(dist_from_thresh, axis=0)
+
+    # assigning real labels to top uncertain pixel pairs
+    selected_data = sorted_indexes[:int(percentage * len(sorted_indexes))]
+    real_labels = img_label[selected_data]
+
+    return selected_data.ravel(), real_labels.ravel()
+
+
+def pseudo_by_percentage_sam(pseudo_dict, percentage):
     """
     Function extracting the position of best pixel pairs according to their distance. The extraction is stratified with
     respect to the complete collection of distances, so that the resulting set would contain the percentage% of the
@@ -166,7 +200,7 @@ def pseudo_by_percentage(pseudo_dict, percentage):
     return selected_data, labels
 
 
-def pseudo_plus_labels_by_percentage(pseudo_dict, percentage, img_label):
+def pseudo_plus_labels_by_percentage_sam(pseudo_dict, percentage, img_label):
     """
     Function extracting the position of best pixel pairs and their respective pseudo labels based on percentage and
     using real labels for remaining pixel pairs
@@ -221,7 +255,7 @@ def pseudo_plus_labels_by_percentage(pseudo_dict, percentage, img_label):
     return selected_data, labels
 
 
-def labels_by_percentage(pseudo_dict, percentage, img_label):
+def labels_by_percentage_sam(pseudo_dict, percentage, img_label):
     """
     Function using only real labels for pixel pairs discarded by the extraction of pseudo labels by percentage
 
@@ -446,6 +480,7 @@ if __name__ == '__main__':
                                                    keep_unlabeled=True,
                                                    apply_rescaling=rescaling)
     i = 0
+    j = 0
     for lab in labels:
         # selecting a image from the list of pairs
         pro_a = processed_ab[i:i + lab.size, 0]
@@ -453,14 +488,14 @@ if __name__ == '__main__':
         pro_lab = processed_lab[i:i + lab.size]
 
         # generating distances
-        print("Info: GENERATING DISTANCES OF " + names[i] + " " + str(i + 1) + "/" + str(len(labels)))
+        print("Info: GENERATING DISTANCES OF " + names[j] + " " + str(j + 1) + "/" + str(len(labels)))
         tic = time.time()
         dist, thresh = pseudo_labels(pro_a, pro_b, distance_func, return_distances=True)
         toc = time.time()
 
         # dumping values in a file
-        print("Info: SAVING DISTANCES OF " + names[i] + " " + str(i + 1) + "/" + str(len(labels)))
-        dist_file = open(parser[dataset].get("pseudoPath") + sep + names[i] + ".pickle", "wb")
+        print("Info: SAVING DISTANCES OF " + names[j] + " " + str(j + 1) + "/" + str(len(labels)))
+        dist_file = open(parser[dataset].get("pseudoPath") + sep + names[j] + ".pickle", "wb")
         pickle.dump({'threshold': thresh, 'distances': dist, 'shape': lab.shape}, dist_file, pickle.HIGHEST_PROTOCOL)
         dist_file.close()
 
@@ -471,7 +506,7 @@ if __name__ == '__main__':
 
         metrics = s.get_metrics(cm)
 
-        file = open(config.STAT_PATH + dataset + "_" + names[i] + "_" + parser["settings"].get("distance")
+        file = open(config.STAT_PATH + dataset + "_" + names[j] + "_" + parser["settings"].get("distance")
                     + "_pseudo_rescaling_" + str(rescaling) + ".csv", "w")
 
         # printing columns names, number of examples and threshold used
@@ -495,7 +530,7 @@ if __name__ == '__main__':
         pseudo_map = np.reshape(pseudo, lab.shape)
         ground_t = dp.refactor_labels(lab, parser[dataset])
         fig = plot_maps(pseudo_map, ground_t)
-        fig.savefig(config.STAT_PATH + dataset + "_" + names[i] + "_" + parser["settings"].get("distance")
+        fig.savefig(config.STAT_PATH + dataset + "_" + names[j] + "_" + parser["settings"].get("distance")
                     + "_pseudo_rescaling_" + str(rescaling) + ".png",
                     dpi=300, bbox_inches='tight')
 
@@ -519,7 +554,8 @@ if __name__ == '__main__':
 
         # map plotting
         scfig = plot_maps(corrected_map, ground_t)
-        scfig.savefig(config.STAT_PATH + dataset + "_" + names[i] + "_" + parser["settings"].get("distance")
+        scfig.savefig(config.STAT_PATH + dataset + "_" + names[j] + "_" + parser["settings"].get("distance")
                       + "_pseudo_rescaling_" + str(rescaling) + "_corrected.png", dpi=300, bbox_inches='tight')
 
         i = i + lab.size
+        j += 1

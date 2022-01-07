@@ -24,7 +24,7 @@ google-pasta
 grpcio
 h5py
 hyperas
-hyperopt
+hyperopt==0.2.5
 idna
 imageio
 ipykernel

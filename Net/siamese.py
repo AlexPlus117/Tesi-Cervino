@@ -240,7 +240,7 @@ def siamese_model(train_set, train_labels, test_set, test_labels, score_function
     try:
         h = siamese.fit([x_train[:, 0], x_train[:, 1]], y_train,
                         batch_size={{choice(config.batch_size)}},
-                        epochs=10,
+                        epochs=150,
                         verbose=2,
                         callbacks=callbacks_list,
                         validation_data=([x_val[:, 0], x_val[:, 1]], y_val))
