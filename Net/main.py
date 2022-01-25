@@ -203,6 +203,16 @@ if __name__ == '__main__':
                     data_used, labels_used = pu.labels_by_percentage_siamese(model, pairs, img_label, percentage)
                     toc_extraction = time.time()
 
+                elif ft_conf == 8:
+                    # feature correlation (active learning)
+
+                    percentage = float(parser["settings"].get("kmeans_percentage"))
+                    real_qty = str(percentage * 100) + "%"
+                    pca_set = dp.generate_pca_feature_set(pairs)
+                    tic_extraction = time.time()
+                    data_used, labels_used = pu.labels_by_percentage_k_means(pca_set, img_label, percentage)
+                    toc_extraction = time.time()
+
                 else:
                     raise ValueError("Error: FINE TUNING CHOICE " + parser["settings"].get("fine_tuning")
                                      + " NOT IMPLEMENTED")
@@ -256,6 +266,9 @@ if __name__ == '__main__':
             elif ft_conf == 7:
                 plt.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                             + "_uncertainty" + "_heatmap.png", dpi=300, bbox_inches='tight')
+            elif ft_conf == 8:
+                plt.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
+                            + "_kmeans" + "_heatmap.png", dpi=300, bbox_inches='tight')
 
             # 1. confusion matrix
             cm = skm.confusion_matrix(img_label, prediction, labels=[config.CHANGED_LABEL, config.UNCHANGED_LABEL])
@@ -283,6 +296,9 @@ if __name__ == '__main__':
             elif ft_conf == 7:
                 file = open(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                             + "_uncertainty" + ".csv", "w")
+            elif ft_conf == 8:
+                file = open(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
+                            + "_kmeans" + ".csv", "w")
 
             # 4. printing column names, number of examples and the used threshold
             file.write("total_examples, threshold")
@@ -330,6 +346,9 @@ if __name__ == '__main__':
             elif ft_conf == 7:
                 fig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                             + "_uncertainty" + ".png", dpi=300, bbox_inches='tight')
+            elif ft_conf == 8:
+                fig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
+                            + "_kmeans" + ".png", dpi=300, bbox_inches='tight')
 
             print("Info: EXECUTING SPATIAL CORRECTION...")
             # replying steps 1, 2, 3, 5 and 6 after the spatial correction
@@ -381,6 +400,9 @@ if __name__ == '__main__':
             elif ft_conf == 7:
                 scfig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                               + "_uncertainty" + "_corrected.png", dpi=300, bbox_inches='tight')
+            elif ft_conf == 8:
+                scfig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
+                              + "_kmeans" + "_corrected.png", dpi=300, bbox_inches='tight')
 
             i = i + lab.size
             j += 1

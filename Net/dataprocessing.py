@@ -7,6 +7,11 @@ import config
 import numpy as np
 import sklearn.preprocessing as sp
 import scipy.io as sio
+import pandas as pd
+
+# single imports
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 
 
 def read_mat(path, label):
@@ -105,6 +110,31 @@ def generate_set(img1, img2, labels, keep_unlabeled):
     return np.asarray(pair_list), np.asarray(label_list)
 
 
+def generate_pca_feature_set(pairs):
+    """
+    Function that creates a new feature set containing the concatenated spectral bands for the pixels of first image
+    and of second image. Then, PCA (Principal Component Analysis) is applied to the newly created dataset, extracting 2
+    principal components.
+
+    :param pairs: pixel pairs of the test set
+
+    :return: feature set to which PCA has been applied
+    """
+
+    # generating the new feature set concatenating spectral bands of the two images
+    feature_set = np.reshape(pairs, (pairs.shape[0], pairs.shape[1] * pairs.shape[2]))
+
+    # standardizing the feature set
+    std_feature_set = StandardScaler().fit_transform(feature_set)
+
+    # applying PCA to the standardized feature set
+    pca = PCA(n_components=2)
+    pca_feature_set = pd.DataFrame(pca.fit_transform(std_feature_set),
+                                   columns=['Principal Component 1', 'Principal Component 2'])
+
+    return pca_feature_set
+
+
 def load_dataset(name, conf):
     """
     Function loading a dataset containing pairs of satellite multi-spectral or hyper-spectral
@@ -147,7 +177,7 @@ def load_dataset(name, conf):
         imgBList.append(load_image(afterpath + os.sep + file, conf[name]))
         labellist.append(load_label(labelpath + os.sep + file, conf[name]))
         namelist.append(os.path.splitext(file)[0])
-        print(str(i + 1)+"/"+str(len(os.listdir(beforepath))) + " pair(s) loaded")
+        print(str(i + 1) + "/" + str(len(os.listdir(beforepath))) + " pair(s) loaded")
         i = i + 1
 
     return imgAList, imgBList, labellist, namelist
@@ -167,7 +197,6 @@ def load_image(path, conf_section):
         return read_mat(path, conf_section.get("matLabel"))
     elif os.path.isdir(path):
         if ".tif" in os.listdir(path)[0]:
-
             return read_decompressed_tif(path)
 
     raise NotImplementedError("Error: CANNOT LOAD NON-MAT FILES")
@@ -205,10 +234,8 @@ def load_label(path, conf_section):
     :return: a 2-dim array containing the labels for a pair of images
     """
     if ".mat" in path:
-
         return read_mat(path, conf_section.get("matLabel"))
     if ".tif" in path:
-
         return np.array(PIL.Image.open(path))
     raise NotImplementedError("Error: CANNOT LOAD LABEL FILE FORMAT")
 

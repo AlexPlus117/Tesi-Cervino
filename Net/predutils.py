@@ -1,4 +1,5 @@
 # full imports
+import random
 import config
 
 # aliases
@@ -11,6 +12,8 @@ import numpy as np
 from collections import Counter
 from skimage.filters import threshold_otsu
 from os import sep
+from sklearn.cluster import KMeans
+from kneed import KneeLocator
 
 # main imports
 # full imports
@@ -117,40 +120,6 @@ def pseudo_labels(first_img, second_img, dist_function, return_distances=False):
     return returned_map, threshold
 
 
-def labels_by_percentage_siamese(model, pairs, img_label, percentage):
-    """
-    Function that extracts the most uncertain pixel pairs that are closest to the threshold and assigns the
-    corresponding real labels for fine tuning
-
-    :param model: trained model used to predict distances for the pixel pairs of the test set
-
-    :param pairs: pixel pairs of the test set
-
-    :param img_label: real labels of the test set
-
-    :param percentage: float value in ]0,1] indicating the percentage of the top uncertain pairs to be extracted
-
-    :return: a 1 dim array containing the position of extracted pixel pairs and a 1-dim containing the corresponding
-             labels
-    """
-
-    # performing prediction
-    distances = model.predict([pairs[:, 0], pairs[:, 1]])
-
-    # computing threshold
-    threshold = threshold_otsu(distances)
-
-    # sorting distances from threshold in ascending order
-    dist_from_thresh = abs(distances - threshold)
-    sorted_indexes = np.argsort(dist_from_thresh, axis=0)
-
-    # assigning real labels to top uncertain pixel pairs
-    selected_data = sorted_indexes[:int(percentage * len(sorted_indexes))]
-    real_labels = img_label[selected_data]
-
-    return selected_data.ravel(), real_labels.ravel()
-
-
 def pseudo_by_percentage_sam(pseudo_dict, percentage):
     """
     Function extracting the position of best pixel pairs according to their distance. The extraction is stratified with
@@ -163,7 +132,7 @@ def pseudo_by_percentage_sam(pseudo_dict, percentage):
                         the "main" script
     :param percentage: float value in ]0,1] indicating the percentage of the best pairs to be extracted
 
-    :return: a 1 dim array containing the position of extracted pixel pairs and a 1-dim containing the labels
+    :return: a 1-dim array containing the position of extracted pixel pairs and a 1-dim containing the labels
              warning: the returned arrays are ordered so that the closest pairs are returned ordered before the
              farthest pairs (which are also ordered), so a shuffle before usage might be necessary
     """
@@ -211,7 +180,7 @@ def pseudo_plus_labels_by_percentage_sam(pseudo_dict, percentage, img_label):
     :param percentage: float value in ]0,1] indicating the percentage of the best pairs to be extracted
     :param img_label: a 1-dim array containing all the real labels of the pixel pairs
 
-    :return: a 1 dim array containing the position of extracted pixel pairs + remaining ones and a 1-dim containing
+    :return: a 1-dim array containing the position of extracted pixel pairs + remaining ones and a 1-dim containing
              pseudo labels + real labels
     """
 
@@ -265,7 +234,7 @@ def labels_by_percentage_sam(pseudo_dict, percentage, img_label):
     :param percentage: float value in ]0,1] indicating the percentage of the best pairs to be extracted
     :param img_label: a 1-dim array containing all the real labels of the pixel pairs
 
-    :return: a 1 dim array containing the position of not extracted pixel pairs and a 1-dim containing the real labels
+    :return: a 1-dim array containing the position of not extracted pixel pairs and a 1-dim containing the real labels
     """
 
     # check of percentage value
@@ -313,7 +282,7 @@ def pseudo_by_neighborhood(pseudo_dict, radius=3):
                         the "main" script
     :param radius: integer value indicating the radius of the square patch of the neighbouring pixels
 
-    :return: a 1 dim array containing the position of the extracted pixel pairs and a 1-dim containing the labels
+    :return: a 1-dim array containing the position of the extracted pixel pairs and a 1-dim containing the labels
     """
 
     if radius < 1:
@@ -355,7 +324,7 @@ def pseudo_plus_labels_by_neighborhood(pseudo_dict, img_label, radius=3):
     :param img_label: a 1-dim array containing all the real labels of the pixel pairs
     :param radius: integer value indicating the radius of the square patch of the neighbouring pixels
 
-    :return: a 1 dim array containing the position of extracted pixel pairs + remaining ones and a 1-dim containing
+    :return: a 1-dim array containing the position of extracted pixel pairs + remaining ones and a 1-dim containing
              pseudo labels + real labels
     """
 
@@ -405,7 +374,7 @@ def labels_by_neighborhood(pseudo_dict, img_label, radius=3):
     :param img_label: a 1-dim array containing all the real labels of the pixel pairs
     :param radius: integer value indicating the radius of the square patch of the neighbouring pixels
 
-    :return: a 1 dim array containing the position of not extracted pixel pairs and a 1-dim containing the labels
+    :return: a 1-dim array containing the position of not extracted pixel pairs and a 1-dim containing the labels
     """
 
     if radius < 1:
@@ -437,6 +406,85 @@ def labels_by_neighborhood(pseudo_dict, img_label, radius=3):
     labels_used = img_label[data_used]
 
     return data_used, labels_used
+
+
+def labels_by_percentage_siamese(model, pairs, img_label, percentage):
+    """
+    Function that extracts the most uncertain pixel pairs that are closest to the threshold and assigns the
+    corresponding real labels for fine tuning
+
+    :param model: trained model used to predict distances for the pixel pairs of the test set
+    :param pairs: pixel pairs of the test set
+    :param img_label: real labels of the test set
+    :param percentage: float value in ]0,1] indicating the percentage of the top uncertain pairs to be extracted
+
+    :return: a 1-dim array containing the position of extracted pixel pairs and a 1-dim containing the corresponding
+             labels
+    """
+
+    # performing prediction
+    distances = model.predict([pairs[:, 0], pairs[:, 1]])
+
+    # computing threshold
+    threshold = threshold_otsu(distances)
+
+    # sorting distances from threshold in ascending order
+    dist_from_thresh = abs(distances - threshold)
+    sorted_indexes = np.argsort(dist_from_thresh, axis=0)
+
+    # assigning real labels to top uncertain pixel pairs
+    selected_data = sorted_indexes[:int(percentage * len(sorted_indexes))]
+    real_labels = img_label[selected_data]
+
+    return selected_data.ravel(), real_labels.ravel()
+
+
+def labels_by_percentage_k_means(pca_set, img_label, percentage):
+    """
+    Function that applies K-Means algorithm to the PCA feature set, extracting top K (percentage) uncertain pixel pairs
+    to which assign their respective real labels.
+
+    :param pca_set: feature set to which PCA has been applied
+    :param img_label: real labels of the test set
+    :param percentage: float value in ]0,1] indicating the percentage of the top uncertain pairs to be extracted
+
+    :return: a 1-dim array containing the position of extracted pixel pairs and a 1-dim containing the corresponding
+             real labels
+    """
+
+    # calculating best number of clusters
+    print("Info: CALCULATING BEST NUMBER OF CLUSTERS...")
+    sse = []
+    for k in range(1, 11):
+        kmeans = KMeans(n_clusters=k)
+        kmeans.fit(pca_set)
+        sse.append(kmeans.inertia_)
+    kl = KneeLocator(range(1, 11), sse, curve="convex", direction="decreasing")
+    k = kl.elbow
+
+    # initializing and fitting the K-Means model
+    kmeans = KMeans(n_clusters=k)
+    kmeans.fit(pca_set)
+
+    # sorting pixel pairs according to their cluster
+    clusters = kmeans.predict(pca_set)
+    sorted_pixels = np.argsort(clusters)
+    sorted_clusters = np.sort(clusters)
+
+    # choosing percentage of examples for each cluster randomly and assigning them the respective real labels
+    selected_data = []
+    real_labels = []
+    separator = 0
+    sorted_clusters = np.append(sorted_clusters, -1)
+    for ind in range(len(sorted_clusters)-1):
+        if sorted_clusters[ind] != sorted_clusters[ind+1]:
+            prov_cluster = sorted_pixels[separator:ind+1]
+            separator = ind+1
+            chosen_examples = np.asarray(random.sample(sorted(prov_cluster), int(percentage*len(prov_cluster))))
+            selected_data = np.concatenate((selected_data, chosen_examples))
+            real_labels = np.concatenate((real_labels, img_label[chosen_examples]))
+
+    return selected_data, real_labels
 
 
 """
