@@ -504,7 +504,8 @@ def labels_by_percentage_k_means_uncertainty(pca_dataset, img_label, percentage,
 
     :param pca_dataset: dataset to which PCA has been applied
     :param img_label: real labels of the test set
-    :param percentage: float value in ]0,1] indicating the percentage of random pairs to be extracted for each cluster
+    :param percentage: float value in ]0,1] indicating the percentage of top uncertain pairs to be extracted
+                       for each cluster
     :param cluster_path: path of the cluster file
     :param model: trained model used to predict distances for the pixel pairs of the test set
     :param pairs: pixel pairs of the test set
