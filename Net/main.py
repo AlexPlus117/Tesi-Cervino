@@ -200,17 +200,32 @@ if __name__ == '__main__':
                     percentage = float(parser["settings"].get("uncertainty_percentage"))
                     real_qty = str(percentage * 100) + "%"
                     tic_extraction = time.time()
-                    data_used, labels_used = pu.labels_by_percentage_siamese(model, pairs, img_label, percentage)
+                    data_used, labels_used = pu.labels_by_percentage_uncertainty(model, pairs, img_label, percentage)
                     toc_extraction = time.time()
 
                 elif ft_conf == 8:
-                    # feature correlation (active learning)
+                    # k-means, randomly selecting examples for each cluster (active learning)
 
                     percentage = float(parser["settings"].get("kmeans_percentage"))
                     real_qty = str(percentage * 100) + "%"
-                    pca_set = dp.generate_pca_feature_set(pairs)
+                    pca_dataset = dp.generate_pca_dataset(pairs)
+                    cluster_path = parser[test_set].get("clusterPath") + os.sep + names[j] + ".pickle"
                     tic_extraction = time.time()
-                    data_used, labels_used = pu.labels_by_percentage_k_means(pca_set, img_label, percentage)
+                    data_used, labels_used = pu.labels_by_percentage_k_means_random(pca_dataset, img_label, percentage,
+                                                                                    cluster_path)
+                    toc_extraction = time.time()
+
+                elif ft_conf == 9:
+                    # k-means, selecting top uncertain examples for each cluster (active learning)
+
+                    percentage = float(parser["settings"].get("kmeans_percentage"))
+                    real_qty = str(percentage * 100) + "%"
+                    pca_dataset = dp.generate_pca_dataset(pairs)
+                    cluster_path = parser[test_set].get("clusterPath") + os.sep + names[j] + ".pickle"
+                    tic_extraction = time.time()
+                    data_used, labels_used = pu.labels_by_percentage_k_means_uncertainty(pca_dataset, img_label,
+                                                                                         percentage, cluster_path,
+                                                                                         model, pairs)
                     toc_extraction = time.time()
 
                 else:
@@ -268,7 +283,10 @@ if __name__ == '__main__':
                             + "_uncertainty" + "_heatmap.png", dpi=300, bbox_inches='tight')
             elif ft_conf == 8:
                 plt.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
-                            + "_kmeans" + "_heatmap.png", dpi=300, bbox_inches='tight')
+                            + "_kmeans_random" + "_heatmap.png", dpi=300, bbox_inches='tight')
+            elif ft_conf == 9:
+                plt.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
+                            + "_kmeans_uncertainty" + "_heatmap.png", dpi=300, bbox_inches='tight')
 
             # 1. confusion matrix
             cm = skm.confusion_matrix(img_label, prediction, labels=[config.CHANGED_LABEL, config.UNCHANGED_LABEL])
@@ -298,7 +316,10 @@ if __name__ == '__main__':
                             + "_uncertainty" + ".csv", "w")
             elif ft_conf == 8:
                 file = open(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
-                            + "_kmeans" + ".csv", "w")
+                            + "_kmeans_random" + ".csv", "w")
+            elif ft_conf == 9:
+                file = open(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
+                            + "_kmeans_uncertainty" + ".csv", "w")
 
             # 4. printing column names, number of examples and the used threshold
             file.write("total_examples, threshold")
@@ -348,7 +369,10 @@ if __name__ == '__main__':
                             + "_uncertainty" + ".png", dpi=300, bbox_inches='tight')
             elif ft_conf == 8:
                 fig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
-                            + "_kmeans" + ".png", dpi=300, bbox_inches='tight')
+                            + "_kmeans_random" + ".png", dpi=300, bbox_inches='tight')
+            elif ft_conf == 9:
+                fig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
+                            + "_kmeans_uncertainty" + ".png", dpi=300, bbox_inches='tight')
 
             print("Info: EXECUTING SPATIAL CORRECTION...")
             # replying steps 1, 2, 3, 5 and 6 after the spatial correction
@@ -402,7 +426,10 @@ if __name__ == '__main__':
                               + "_uncertainty" + "_corrected.png", dpi=300, bbox_inches='tight')
             elif ft_conf == 8:
                 scfig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
-                              + "_kmeans" + "_corrected.png", dpi=300, bbox_inches='tight')
+                              + "_kmeans_random" + "_corrected.png", dpi=300, bbox_inches='tight')
+            elif ft_conf == 9:
+                scfig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
+                              + "_kmeans_uncertainty" + "_corrected.png", dpi=300, bbox_inches='tight')
 
             i = i + lab.size
             j += 1

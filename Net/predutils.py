@@ -1,4 +1,5 @@
 # full imports
+import os.path
 import random
 import config
 
@@ -28,6 +29,7 @@ import sklearn.metrics as skm
 
 np.random.seed(43)
 tf.random.set_seed(43)
+random.seed(43)
 
 
 def spatial_correction(prediction, radius=3):
@@ -408,7 +410,7 @@ def labels_by_neighborhood(pseudo_dict, img_label, radius=3):
     return data_used, labels_used
 
 
-def labels_by_percentage_siamese(model, pairs, img_label, percentage):
+def labels_by_percentage_uncertainty(model, pairs, img_label, percentage):
     """
     Function that extracts the most uncertain pixel pairs that are closest to the threshold and assigns the
     corresponding real labels for fine tuning
@@ -429,8 +431,8 @@ def labels_by_percentage_siamese(model, pairs, img_label, percentage):
     threshold = threshold_otsu(distances)
 
     # sorting distances from threshold in ascending order
-    dist_from_thresh = abs(distances - threshold)
-    sorted_indexes = np.argsort(dist_from_thresh, axis=0)
+    dist_from_threshold = abs(distances - threshold)
+    sorted_indexes = np.argsort(dist_from_threshold, axis=0)
 
     # assigning real labels to top uncertain pixel pairs
     selected_data = sorted_indexes[:int(percentage * len(sorted_indexes))]
@@ -439,50 +441,125 @@ def labels_by_percentage_siamese(model, pairs, img_label, percentage):
     return selected_data.ravel(), real_labels.ravel()
 
 
-def labels_by_percentage_k_means(pca_set, img_label, percentage):
+def labels_by_percentage_k_means_random(pca_dataset, img_label, percentage, cluster_path):
     """
-    Function that applies K-Means algorithm to the PCA feature set, extracting top K (percentage) uncertain pixel pairs
-    to which assign their respective real labels.
+    Function that applies K-Means algorithm to the PCA dataset, extracting random pixel pairs for each cluster based on
+    percentage and assigning them the respective real labels.
 
-    :param pca_set: feature set to which PCA has been applied
+    :param pca_dataset: dataset to which PCA has been applied
     :param img_label: real labels of the test set
-    :param percentage: float value in ]0,1] indicating the percentage of the top uncertain pairs to be extracted
+    :param percentage: float value in ]0,1] indicating the percentage of random pairs to be extracted for each cluster
+    :param cluster_path: path of the cluster file
 
     :return: a 1-dim array containing the position of extracted pixel pairs and a 1-dim containing the corresponding
              real labels
     """
 
-    # calculating best number of clusters
-    print("Info: CALCULATING BEST NUMBER OF CLUSTERS...")
-    sse = []
-    for k in range(1, 11):
-        kmeans = KMeans(n_clusters=k)
-        kmeans.fit(pca_set)
-        sse.append(kmeans.inertia_)
-    kl = KneeLocator(range(1, 11), sse, curve="convex", direction="decreasing")
-    k = kl.elbow
+    if not os.path.isfile(cluster_path):
+        # calculating best number of clusters
+        print("Info: CALCULATING BEST NUMBER OF CLUSTERS...")
+        sse = []
+        for k in range(50, 76):
+            kmeans = KMeans(n_clusters=k, random_state=43)
+            kmeans.fit(pca_dataset)
+            sse.append(kmeans.inertia_)
+        kl = KneeLocator(range(50, 76), sse, curve="convex", direction="decreasing")
+        k = kl.elbow
 
-    # initializing and fitting the K-Means model
-    kmeans = KMeans(n_clusters=k)
-    kmeans.fit(pca_set)
+        # initializing and fitting the K-Means model
+        kmeans = KMeans(n_clusters=k, random_state=43)
+        kmeans.fit(pca_dataset)
 
-    # sorting pixel pairs according to their cluster
-    clusters = kmeans.predict(pca_set)
-    sorted_pixels = np.argsort(clusters)
-    sorted_clusters = np.sort(clusters)
+        # creating a dictionary of pixels for each cluster and serializing it to a file
+        clusters = np.array(kmeans.predict(pca_dataset))
+        clusters_dict = {}
+        for clu in range(k):
+            clusters_dict[clu] = np.where(clusters == clu)[0]
+        cluster_file = open(cluster_path, "wb")
+        pickle.dump(clusters_dict, cluster_file)
+        cluster_file.close()
+
+    else:
+        # loading the dictionary from file
+        print("Info: LOADING THE CLUSTERS DICTIONARY...")
+        cluster_file = open(cluster_path, "rb")
+        clusters_dict = pickle.load(cluster_file)
+        cluster_file.close()
 
     # choosing percentage of examples for each cluster randomly and assigning them the respective real labels
     selected_data = []
     real_labels = []
-    separator = 0
-    sorted_clusters = np.append(sorted_clusters, -1)
-    for ind in range(len(sorted_clusters)-1):
-        if sorted_clusters[ind] != sorted_clusters[ind+1]:
-            prov_cluster = sorted_pixels[separator:ind+1]
-            separator = ind+1
-            chosen_examples = np.asarray(random.sample(sorted(prov_cluster), int(percentage*len(prov_cluster))))
-            selected_data = np.concatenate((selected_data, chosen_examples))
-            real_labels = np.concatenate((real_labels, img_label[chosen_examples]))
+    for c in range(len(clusters_dict)):
+        chosen_examples = np.asarray(random.sample(sorted(clusters_dict[c]), int(percentage*len(clusters_dict[c]))))
+        selected_data = np.concatenate((selected_data, chosen_examples)).astype(int)
+        real_labels = np.concatenate((real_labels, img_label[chosen_examples])).astype(int)
+
+    return selected_data, real_labels
+
+
+def labels_by_percentage_k_means_uncertainty(pca_dataset, img_label, percentage, cluster_path, model, pairs):
+    """
+    Function that applies K-Means algorithm to the PCA dataset, extracting top percentage uncertain pixel pairs for
+    each cluster and assigning them the respective real labels.
+
+    :param pca_dataset: dataset to which PCA has been applied
+    :param img_label: real labels of the test set
+    :param percentage: float value in ]0,1] indicating the percentage of random pairs to be extracted for each cluster
+    :param cluster_path: path of the cluster file
+    :param model: trained model used to predict distances for the pixel pairs of the test set
+    :param pairs: pixel pairs of the test set
+
+    :return: a 1-dim array containing the position of extracted pixel pairs and a 1-dim containing the corresponding
+             real labels
+    """
+
+    if not os.path.isfile(cluster_path):
+        # calculating best number of clusters
+        print("Info: CALCULATING BEST NUMBER OF CLUSTERS...")
+        sse = []
+        for k in range(50, 76):
+            kmeans = KMeans(n_clusters=k, random_state=43)
+            kmeans.fit(pca_dataset)
+            sse.append(kmeans.inertia_)
+        kl = KneeLocator(range(50, 76), sse, curve="convex", direction="decreasing")
+        k = kl.elbow
+
+        # initializing and fitting the K-Means model
+        kmeans = KMeans(n_clusters=k, random_state=43)
+        kmeans.fit(pca_dataset)
+
+        # creating a dictionary of pixels for each cluster and serializing it to a file
+        clusters = np.array(kmeans.predict(pca_dataset))
+        clusters_dict = {}
+        for clu in range(k):
+            clusters_dict[clu] = np.where(clusters == clu)[0]
+        cluster_file = open(cluster_path, "wb")
+        pickle.dump(clusters_dict, cluster_file)
+        cluster_file.close()
+
+    else:
+        # loading the dictionary from file
+        print("Info: LOADING THE CLUSTERS DICTIONARY...")
+        cluster_file = open(cluster_path, "rb")
+        clusters_dict = pickle.load(cluster_file)
+        cluster_file.close()
+
+    # performing prediction
+    distances = model.predict([pairs[:, 0], pairs[:, 1]])
+
+    # computing threshold
+    threshold = threshold_otsu(distances)
+
+    # selecting top uncertain percentage of examples for each cluster and assigning them the respective real labels
+    selected_data = []
+    real_labels = []
+    for c in range(len(clusters_dict)):
+        dist_from_threshold = abs(distances[clusters_dict[c]]-threshold)
+        sorted_indexes = np.argsort(dist_from_threshold, axis=0).ravel()
+        sorted_pixels = clusters_dict[c][sorted_indexes]
+        chosen_pixels = sorted_pixels[:int(percentage * len(sorted_pixels))]
+        selected_data = np.concatenate((selected_data, chosen_pixels)).astype(int)
+        real_labels = np.concatenate((real_labels, img_label[chosen_pixels])).astype(int)
 
     return selected_data, real_labels
 

@@ -110,29 +110,25 @@ def generate_set(img1, img2, labels, keep_unlabeled):
     return np.asarray(pair_list), np.asarray(label_list)
 
 
-def generate_pca_feature_set(pairs):
+def generate_pca_dataset(pairs):
     """
-    Function that creates a new feature set containing the concatenated spectral bands for the pixels of first image
+    Function that creates a new dataset containing the concatenated spectral bands for the pixels of first image
     and of second image. Then, PCA (Principal Component Analysis) is applied to the newly created dataset, extracting 2
     principal components.
 
     :param pairs: pixel pairs of the test set
 
-    :return: feature set to which PCA has been applied
+    :return: dataset to which PCA has been applied
     """
 
     # generating the new feature set concatenating spectral bands of the two images
-    feature_set = np.reshape(pairs, (pairs.shape[0], pairs.shape[1] * pairs.shape[2]))
+    dataset = np.reshape(pairs, (pairs.shape[0], pairs.shape[1] * pairs.shape[2]))
 
-    # standardizing the feature set
-    std_feature_set = StandardScaler().fit_transform(feature_set)
+    # applying PCA to the data set
+    pca = PCA(n_components=2, random_state=43)
+    pca_dataset = pd.DataFrame(pca.fit_transform(dataset), columns=['Principal Component 1', 'Principal Component 2'])
 
-    # applying PCA to the standardized feature set
-    pca = PCA(n_components=2)
-    pca_feature_set = pd.DataFrame(pca.fit_transform(std_feature_set),
-                                   columns=['Principal Component 1', 'Principal Component 2'])
-
-    return pca_feature_set
+    return pca_dataset
 
 
 def load_dataset(name, conf):
