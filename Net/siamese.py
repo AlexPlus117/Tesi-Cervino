@@ -467,7 +467,7 @@ def fine_tuning(model, batch_size, x_retrain, pseudo_labels):
     :param batch_size: an integer indicating the batch size to be used for the tuning,
     :param x_retrain: a 3-dim array containing the pair of pixel to be used for the tuning,
     :param pseudo_labels: a 1-dim map of pseudo-labels obtained with predutils.pseudo_labels(). Each pixel of the map is
-                        a label to be used for the tuning,
+                        a label to be used for the tuning
 
     :return: a list containing:
             - a Keras model, the tuned model on the given dataset
@@ -507,7 +507,7 @@ def fine_tuning(model, batch_size, x_retrain, pseudo_labels):
     val_loss = h.history['val_loss'][best_epoch_idx]
     ft_time = toc - tic
 
-    # making preditcion on the validation set
+    # making prediction on the validation set
     val_distances = model.predict([x_val[:, 0], x_val[:, 1]])
 
     val_thresh = threshold_otsu(val_distances)

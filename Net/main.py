@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 
 # single imports
 from skimage.filters import threshold_otsu
+from kneed import KneeLocator
+from sklearn.cluster import KMeans
 
 np.random.seed(43)
 
@@ -45,7 +47,7 @@ if __name__ == '__main__':
     print("Selected model: " + model_name)
 
     # TRAINING ROUTINE
-    if parser["settings"].getboolean("training") is True:
+    if parser["settings"].getint("operation") == 0:
 
         # reading the distance function and settings for the learning phase
         if parser["settings"].get("distance") == "ED":
@@ -77,10 +79,54 @@ if __name__ == '__main__':
         model, run = s.hyperparam_search(x_train, y_train, x_test, y_test, distance_func, model_name,
                                          parser[hyperas_sett])
 
+    # CLUSTERING ROUTINE
+    elif parser["settings"].getint("operation") == 1:
+
+        # dataset loading
+        first_img, second_img, labels, names = dp.load_dataset(test_set, parser)
+        x_test, y_test = dp.preprocessing(first_img, second_img, labels, parser[test_set],
+                                          keep_unlabeled=True,
+                                          apply_rescaling=parser["settings"].getboolean("apply_rescaling"))
+
+        # clustering
+        i = 0
+        j = 0
+        for lab in labels:
+            pairs = x_test[i:i + lab.size, :]
+            pca_dataset = dp.generate_pca_dataset(pairs)
+            cluster_path = parser[test_set].get("clusterPath") + os.sep + names[j] + ".pickle"
+
+            # calculating best number of clusters
+            print("Info: CALCULATING BEST NUMBER OF CLUSTERS...")
+            sse = []
+            for k in range(50, 76):
+                kmeans = KMeans(n_clusters=k, random_state=43)
+                kmeans.fit(pca_dataset)
+                sse.append(kmeans.inertia_)
+            kl = KneeLocator(range(50, 76), sse, curve="convex", direction="decreasing")
+            k = kl.elbow
+
+            # initializing and fitting the K-Means model
+            kmeans = KMeans(n_clusters=k, random_state=43)
+            kmeans.fit(pca_dataset)
+
+            # creating a dictionary of pixels for each cluster and serializing it to a file
+            clusters = np.array(kmeans.predict(pca_dataset))
+            clusters_dict = {}
+            for clu in range(k):
+                clusters_dict[clu] = np.where(clusters == clu)[0]
+            cluster_file = open(cluster_path, "wb")
+            pickle.dump(clusters_dict, cluster_file)
+            cluster_file.close()
+
+            i = i + lab.size
+            j += 1
+
     # TESTING ROUTINE
-    else:
+    elif parser["settings"].getint("operation") == 2:
         # declaring placeholder to be printed when no fine tuning is executed
-        pseudo_qty = "no fine tuning"
+        pseudo_qty = "no pseudo labels"
+        real_qty = "no real labels"
         extraction_time = "-"
         fine_time = "-"
         loss = "-"
@@ -115,9 +161,9 @@ if __name__ == '__main__':
             model.load_weights(config.MODEL_SAVE_PATH + model_name + ".h5")
 
             # Fine tuning phase
-            ft_conf = int(parser["settings"].get("fine_tuning"))
+            ft = int(parser["settings"].get("fine_tuning"))
 
-            if ft_conf >= 0:
+            if ft >= 0:
                 # loading the dictionary containing distances, threshold and shape
                 pseudo_file = open(parser[test_set].get("pseudoPath") + os.sep + names[j] + ".pickle", "rb")
                 pseudo_dict = pickle.load(pseudo_file)
@@ -128,7 +174,7 @@ if __name__ == '__main__':
                                         config.UNCHANGED_LABEL)
                 pseudo_truth = pu.spatial_correction(np.reshape(pseudo_truth, pseudo_dict["shape"])).ravel()
 
-                if ft_conf == 0:
+                if ft == 0:
                     # selecting all the pseudo-labels
 
                     pseudo_qty = "all"
@@ -137,7 +183,7 @@ if __name__ == '__main__':
                     data_used = np.arange(0, len(pseudo_dict["distances"]))
                     labels_used = pseudo_truth
 
-                elif ft_conf == 1:
+                elif ft == 1:
                     # selecting the "percentage"*100% best pseudo-labels
 
                     percentage = float(parser["settings"].get("pseudo_percentage"))
@@ -146,7 +192,7 @@ if __name__ == '__main__':
                     data_used, labels_used = pu.pseudo_by_percentage_sam(pseudo_dict, percentage)
                     toc_extraction = time.time()
 
-                elif ft_conf == 2:
+                elif ft == 2:
                     # selecting the best pseudo-labels by neighbourhood with "radius" radius
 
                     radius = int(parser["settings"].get("pseudo_radius"))
@@ -155,7 +201,7 @@ if __name__ == '__main__':
                     data_used, labels_used = pu.pseudo_by_neighborhood(pseudo_dict, radius)
                     toc_extraction = time.time()
 
-                elif ft_conf == 3:
+                elif ft == 3:
                     # selecting the "percentage"*100% best pseudo-labels and using real labels for remaining data
 
                     percentage = float(parser["settings"].get("pseudo_percentage"))
@@ -165,7 +211,7 @@ if __name__ == '__main__':
                     data_used, labels_used = pu.pseudo_plus_labels_by_percentage_sam(pseudo_dict, percentage, img_label)
                     toc_extraction = time.time()
 
-                elif ft_conf == 4:
+                elif ft == 4:
                     # selecting only real labels discarded from the extraction of pseudo labels by percentage
 
                     percentage = float(parser["settings"].get("pseudo_percentage"))
@@ -175,7 +221,7 @@ if __name__ == '__main__':
                     data_used, labels_used = pu.labels_by_percentage_sam(pseudo_dict, percentage, img_label)
                     toc_extraction = time.time()
 
-                elif ft_conf == 5:
+                elif ft == 5:
                     # selecting the best pseudo-labels by neighbourhood with "radius" radius and using real labels for
                     # remaining data
 
@@ -185,7 +231,7 @@ if __name__ == '__main__':
                     data_used, labels_used = pu.pseudo_plus_labels_by_neighborhood(pseudo_dict, img_label, radius)
                     toc_extraction = time.time()
 
-                elif ft_conf == 6:
+                elif ft == 6:
                     # selecting only real labels discarded from the extraction of pseudo labels by neighborhood
 
                     radius = int(parser["settings"].get("pseudo_radius"))
@@ -194,7 +240,7 @@ if __name__ == '__main__':
                     data_used, labels_used = pu.labels_by_neighborhood(pseudo_dict, img_label, radius)
                     toc_extraction = time.time()
 
-                elif ft_conf == 7:
+                elif ft == 7:
                     # uncertainty sampling (active learning)
 
                     percentage = float(parser["settings"].get("uncertainty_percentage"))
@@ -203,29 +249,25 @@ if __name__ == '__main__':
                     data_used, labels_used = pu.labels_by_percentage_uncertainty(model, pairs, img_label, percentage)
                     toc_extraction = time.time()
 
-                elif ft_conf == 8:
+                elif ft == 8:
                     # k-means, randomly selecting examples for each cluster (active learning)
 
                     percentage = float(parser["settings"].get("kmeans_percentage"))
                     real_qty = str(percentage * 100) + "%"
-                    pca_dataset = dp.generate_pca_dataset(pairs)
                     cluster_path = parser[test_set].get("clusterPath") + os.sep + names[j] + ".pickle"
                     tic_extraction = time.time()
-                    data_used, labels_used = pu.labels_by_percentage_k_means_random(pca_dataset, img_label, percentage,
-                                                                                    cluster_path)
+                    data_used, labels_used = pu.labels_by_percentage_k_means_random(img_label, percentage, cluster_path)
                     toc_extraction = time.time()
 
-                elif ft_conf == 9:
+                elif ft == 9:
                     # k-means, selecting top uncertain examples for each cluster (active learning)
 
                     percentage = float(parser["settings"].get("kmeans_percentage"))
                     real_qty = str(percentage * 100) + "%"
-                    pca_dataset = dp.generate_pca_dataset(pairs)
                     cluster_path = parser[test_set].get("clusterPath") + os.sep + names[j] + ".pickle"
                     tic_extraction = time.time()
-                    data_used, labels_used = pu.labels_by_percentage_k_means_uncertainty(pca_dataset, img_label,
-                                                                                         percentage, cluster_path,
-                                                                                         model, pairs)
+                    data_used, labels_used = pu.labels_by_percentage_k_means_uncertainty(img_label, percentage,
+                                                                                         cluster_path, model, pairs)
                     toc_extraction = time.time()
 
                 else:
@@ -247,6 +289,14 @@ if __name__ == '__main__':
                                                                                   parameters['batch_size'],
                                                                                   pairs[data_used], labels_used)
 
+                # saving new model
+                if ft == 0:
+                    model.save(config.MODEL_SAVE_PATH + os.sep + names[j] + "_FT" + str(ft) + ".h5")
+                elif ft == 7 or ft == 8 or ft == 9:
+                    model.save(config.MODEL_SAVE_PATH + os.sep + names[j] + "_FT" + str(ft) + "_" + real_qty + ".h5")
+                else:
+                    model.save(config.MODEL_SAVE_PATH + os.sep + names[j] + "_FT" + str(ft) + "_" + pseudo_qty + ".h5")
+
             # performing prediction and computing the elapsed time
             print("Info: EXECUTING PREDICTION OF " + names[j] + " " + str(j + 1) + "/" + str(len(labels)))
             tic_prediction = time.time()
@@ -263,28 +313,28 @@ if __name__ == '__main__':
             # print the heatmap0
             im = plt.imshow(distances.reshape(lab.shape), cmap='hot', interpolation='nearest')
             plt.colorbar()
-            if ft_conf <= 2:
+            if ft <= 2:
                 plt.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                             + "_pseudo" + "_heatmap.png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 3:
+            elif ft == 3:
                 plt.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                             + "_pseudo_" + real_qty + "_real" + "_heatmap.png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 4:
+            elif ft == 4:
                 plt.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                             + "_real" + "_heatmap.png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 5:
+            elif ft == 5:
                 plt.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                             + "_pseudo" + "_real" + "_heatmap.png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 6:
+            elif ft == 6:
                 plt.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                             + "_real" + "_heatmap.png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 7:
+            elif ft == 7:
                 plt.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                             + "_uncertainty" + "_heatmap.png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 8:
+            elif ft == 8:
                 plt.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                             + "_kmeans_random" + "_heatmap.png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 9:
+            elif ft == 9:
                 plt.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                             + "_kmeans_uncertainty" + "_heatmap.png", dpi=300, bbox_inches='tight')
 
@@ -296,28 +346,28 @@ if __name__ == '__main__':
 
             # 3. Opening a new file
             print("Info: SAVING THE " + str(j + 1) + "° RESULT")
-            if ft_conf <= 2:
+            if ft <= 2:
                 file = open(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                             + "_pseudo" + ".csv", "w")
-            elif ft_conf == 3:
+            elif ft == 3:
                 file = open(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                             + "_pseudo_" + real_qty + "_real" + ".csv", "w")
-            elif ft_conf == 4:
+            elif ft == 4:
                 file = open(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                             + "_real" + ".csv", "w")
-            elif ft_conf == 5:
+            elif ft == 5:
                 file = open(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                             + "_pseudo" + "_real" + ".csv", "w")
-            elif ft_conf == 6:
+            elif ft == 6:
                 file = open(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                             + "_real" + ".csv", "w")
-            elif ft_conf == 7:
+            elif ft == 7:
                 file = open(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                             + "_uncertainty" + ".csv", "w")
-            elif ft_conf == 8:
+            elif ft == 8:
                 file = open(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                             + "_kmeans_random" + ".csv", "w")
-            elif ft_conf == 9:
+            elif ft == 9:
                 file = open(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                             + "_kmeans_uncertainty" + ".csv", "w")
 
@@ -332,7 +382,7 @@ if __name__ == '__main__':
             for k in metrics.keys():
                 file.write(", " + k + "_correction")
 
-            file.write(", correction_time, pseudo_qty, extraction_time," +
+            file.write(", correction_time, pseudo_qty, real_qty, extraction_time," +
                        " ft_epochs, ft_time, ft_loss, ft_val_loss, ft_val_acc, pseudo_acc, pseudo_acc_corrected")
 
             file.write("\n %d, %f" % (len(img_label), threshold))
@@ -349,28 +399,28 @@ if __name__ == '__main__':
             ground_t = dp.refactor_labels(lab, parser[test_set])
             # c. the maps are plotted with the appropriate function
             fig = pu.plot_maps(lmap, ground_t)
-            if ft_conf <= 2:
+            if ft <= 2:
                 fig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                             + "_pseudo" + ".png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 3:
+            elif ft == 3:
                 fig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                             + "_pseudo_" + real_qty + "_real" + ".png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 4:
+            elif ft == 4:
                 fig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                             + "_real" + ".png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 5:
+            elif ft == 5:
                 fig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                             + "_pseudo" + "_real" + ".png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 6:
+            elif ft == 6:
                 fig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                             + "_real" + ".png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 7:
+            elif ft == 7:
                 fig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                             + "_uncertainty" + ".png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 8:
+            elif ft == 8:
                 fig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                             + "_kmeans_random" + ".png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 9:
+            elif ft == 9:
                 fig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                             + "_kmeans_uncertainty" + ".png", dpi=300, bbox_inches='tight')
 
@@ -399,37 +449,40 @@ if __name__ == '__main__':
 
             for k in scmetrics.keys():
                 file.write(", " + str(scmetrics[k]))
-            file.write(", " + str(correction_time) + ", " + pseudo_qty + ", " + str(extraction_time) +
+            file.write(", " + str(correction_time) + ", " + pseudo_qty + ", " + real_qty + ", " + str(extraction_time) +
                        ", " + str(epochs) + ", " + str(fine_time) + ", " + str(loss) + ", " + str(val_loss) +
                        ", " + str(val_acc) + ", " + str(pseudo_accuracy) + ", " + str(pseudo_accuracy_corr))
             file.write("\n")
             file.close()
 
             scfig = pu.plot_maps(corrected_map, ground_t)
-            if ft_conf <= 2:
+            if ft <= 2:
                 scfig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                               + "_pseudo" + "_corrected.png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 3:
+            elif ft == 3:
                 scfig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                               + "_pseudo_" + real_qty + "_real" + "_corrected.png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 4:
+            elif ft == 4:
                 scfig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                               + "_real" + "_corrected.png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 5:
+            elif ft == 5:
                 scfig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                               + "_pseudo" + "_real" + "_corrected.png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 6:
+            elif ft == 6:
                 scfig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                               + "_real" + "_corrected.png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 7:
+            elif ft == 7:
                 scfig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                               + "_uncertainty" + "_corrected.png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 8:
+            elif ft == 8:
                 scfig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                               + "_kmeans_random" + "_corrected.png", dpi=300, bbox_inches='tight')
-            elif ft_conf == 9:
+            elif ft == 9:
                 scfig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                               + "_kmeans_uncertainty" + "_corrected.png", dpi=300, bbox_inches='tight')
 
             i = i + lab.size
             j += 1
+
+    else:
+        raise ValueError("Error: OPERATION CHOICE " + parser["settings"].get("operation") + " NOT IMPLEMENTED")

@@ -13,8 +13,6 @@ import numpy as np
 from collections import Counter
 from skimage.filters import threshold_otsu
 from os import sep
-from sklearn.cluster import KMeans
-from kneed import KneeLocator
 
 # main imports
 # full imports
@@ -91,7 +89,7 @@ def plot_maps(prediction, label_map):
 
     ax3.imshow(label_map, cmap=cmap, vmin=0, vmax=2)
     ax3.title.set_text("Ground truth")
-    plt.show()
+    plt.show(block=False)
     return fig
 
 
@@ -441,12 +439,10 @@ def labels_by_percentage_uncertainty(model, pairs, img_label, percentage):
     return selected_data.ravel(), real_labels.ravel()
 
 
-def labels_by_percentage_k_means_random(pca_dataset, img_label, percentage, cluster_path):
+def labels_by_percentage_k_means_random(img_label, percentage, cluster_path):
     """
-    Function that applies K-Means algorithm to the PCA dataset, extracting random pixel pairs for each cluster based on
-    percentage and assigning them the respective real labels.
+    Function that extracts random pixel pairs for each cluster based on percentage and the respective real labels.
 
-    :param pca_dataset: dataset to which PCA has been applied
     :param img_label: real labels of the test set
     :param percentage: float value in ]0,1] indicating the percentage of random pairs to be extracted for each cluster
     :param cluster_path: path of the cluster file
@@ -455,36 +451,14 @@ def labels_by_percentage_k_means_random(pca_dataset, img_label, percentage, clus
              real labels
     """
 
-    if not os.path.isfile(cluster_path):
-        # calculating best number of clusters
-        print("Info: CALCULATING BEST NUMBER OF CLUSTERS...")
-        sse = []
-        for k in range(50, 76):
-            kmeans = KMeans(n_clusters=k, random_state=43)
-            kmeans.fit(pca_dataset)
-            sse.append(kmeans.inertia_)
-        kl = KneeLocator(range(50, 76), sse, curve="convex", direction="decreasing")
-        k = kl.elbow
-
-        # initializing and fitting the K-Means model
-        kmeans = KMeans(n_clusters=k, random_state=43)
-        kmeans.fit(pca_dataset)
-
-        # creating a dictionary of pixels for each cluster and serializing it to a file
-        clusters = np.array(kmeans.predict(pca_dataset))
-        clusters_dict = {}
-        for clu in range(k):
-            clusters_dict[clu] = np.where(clusters == clu)[0]
-        cluster_file = open(cluster_path, "wb")
-        pickle.dump(clusters_dict, cluster_file)
-        cluster_file.close()
-
-    else:
+    if os.path.isfile(cluster_path):
         # loading the dictionary from file
         print("Info: LOADING THE CLUSTERS DICTIONARY...")
         cluster_file = open(cluster_path, "rb")
         clusters_dict = pickle.load(cluster_file)
         cluster_file.close()
+    else:
+        raise ValueError("ERROR: Dictionary File not available")
 
     # choosing percentage of examples for each cluster randomly and assigning them the respective real labels
     selected_data = []
@@ -497,12 +471,10 @@ def labels_by_percentage_k_means_random(pca_dataset, img_label, percentage, clus
     return selected_data, real_labels
 
 
-def labels_by_percentage_k_means_uncertainty(pca_dataset, img_label, percentage, cluster_path, model, pairs):
+def labels_by_percentage_k_means_uncertainty(img_label, percentage, cluster_path, model, pairs):
     """
-    Function that applies K-Means algorithm to the PCA dataset, extracting top percentage uncertain pixel pairs for
-    each cluster and assigning them the respective real labels.
+    Function that extracts top percentage uncertain pixel pairs for each cluster and the respective real labels.
 
-    :param pca_dataset: dataset to which PCA has been applied
     :param img_label: real labels of the test set
     :param percentage: float value in ]0,1] indicating the percentage of top uncertain pairs to be extracted
                        for each cluster
@@ -514,36 +486,14 @@ def labels_by_percentage_k_means_uncertainty(pca_dataset, img_label, percentage,
              real labels
     """
 
-    if not os.path.isfile(cluster_path):
-        # calculating best number of clusters
-        print("Info: CALCULATING BEST NUMBER OF CLUSTERS...")
-        sse = []
-        for k in range(50, 76):
-            kmeans = KMeans(n_clusters=k, random_state=43)
-            kmeans.fit(pca_dataset)
-            sse.append(kmeans.inertia_)
-        kl = KneeLocator(range(50, 76), sse, curve="convex", direction="decreasing")
-        k = kl.elbow
-
-        # initializing and fitting the K-Means model
-        kmeans = KMeans(n_clusters=k, random_state=43)
-        kmeans.fit(pca_dataset)
-
-        # creating a dictionary of pixels for each cluster and serializing it to a file
-        clusters = np.array(kmeans.predict(pca_dataset))
-        clusters_dict = {}
-        for clu in range(k):
-            clusters_dict[clu] = np.where(clusters == clu)[0]
-        cluster_file = open(cluster_path, "wb")
-        pickle.dump(clusters_dict, cluster_file)
-        cluster_file.close()
-
-    else:
+    if os.path.isfile(cluster_path):
         # loading the dictionary from file
         print("Info: LOADING THE CLUSTERS DICTIONARY...")
         cluster_file = open(cluster_path, "rb")
         clusters_dict = pickle.load(cluster_file)
         cluster_file.close()
+    else:
+        raise ValueError("ERROR: Dictionary File not available")
 
     # performing prediction
     distances = model.predict([pairs[:, 0], pairs[:, 1]])
