@@ -4,6 +4,7 @@ import config
 import configparser
 import pickle
 import os
+
 # aliases
 import dataprocessing as dp
 import siamese as s
@@ -215,7 +216,6 @@ if __name__ == '__main__':
                     # selecting only real labels discarded from the extraction of pseudo labels by percentage
 
                     percentage = float(parser["settings"].get("pseudo_percentage"))
-                    pseudo_qty = str(percentage * 100) + "%"
                     real_qty = str(round(1 - percentage, 1) * 100) + "%"
                     tic_extraction = time.time()
                     data_used, labels_used = pu.labels_by_percentage_sam(pseudo_dict, percentage, img_label)
@@ -227,6 +227,7 @@ if __name__ == '__main__':
 
                     radius = int(parser["settings"].get("pseudo_radius"))
                     pseudo_qty = "r=" + str(radius)
+                    real_qty = "r=" + str(radius)
                     tic_extraction = time.time()
                     data_used, labels_used = pu.pseudo_plus_labels_by_neighborhood(pseudo_dict, img_label, radius)
                     toc_extraction = time.time()
@@ -235,7 +236,7 @@ if __name__ == '__main__':
                     # selecting only real labels discarded from the extraction of pseudo labels by neighborhood
 
                     radius = int(parser["settings"].get("pseudo_radius"))
-                    pseudo_qty = "r=" + str(radius)
+                    real_qty = "r=" + str(radius)
                     tic_extraction = time.time()
                     data_used, labels_used = pu.labels_by_neighborhood(pseudo_dict, img_label, radius)
                     toc_extraction = time.time()
@@ -291,11 +292,17 @@ if __name__ == '__main__':
 
                 # saving new model
                 if ft == 0:
-                    model.save(config.MODEL_SAVE_PATH + os.sep + names[j] + "_FT" + str(ft) + ".h5")
-                elif ft == 7 or ft == 8 or ft == 9:
-                    model.save(config.MODEL_SAVE_PATH + os.sep + names[j] + "_FT" + str(ft) + "_" + real_qty + ".h5")
+                    model.save(config.MODEL_SAVE_PATH + os.sep + names[j] + "_on_" + model_name +
+                               "_FT" + str(ft) + ".h5")
+                elif ft == 1 or ft == 2 or ft == 5:
+                    model.save(config.MODEL_SAVE_PATH + os.sep + names[j] + "_on_" + model_name +
+                               "_FT" + str(ft) + "_" + pseudo_qty + ".h5")
+                elif ft == 3:
+                    model.save(config.MODEL_SAVE_PATH + os.sep + names[j] + "_on_" + model_name +
+                               "_FT" + str(ft) + "_" + pseudo_qty + "_" + real_qty + ".h5")
                 else:
-                    model.save(config.MODEL_SAVE_PATH + os.sep + names[j] + "_FT" + str(ft) + "_" + pseudo_qty + ".h5")
+                    model.save(config.MODEL_SAVE_PATH + os.sep + names[j] + "_on_" + model_name +
+                               "_FT" + str(ft) + "_" + real_qty + ".h5")
 
             # performing prediction and computing the elapsed time
             print("Info: EXECUTING PREDICTION OF " + names[j] + " " + str(j + 1) + "/" + str(len(labels)))
@@ -326,7 +333,7 @@ if __name__ == '__main__':
                 plt.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                             + "_pseudo" + "_real" + "_heatmap.png", dpi=300, bbox_inches='tight')
             elif ft == 6:
-                plt.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
+                plt.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                             + "_real" + "_heatmap.png", dpi=300, bbox_inches='tight')
             elif ft == 7:
                 plt.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
@@ -359,7 +366,7 @@ if __name__ == '__main__':
                 file = open(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                             + "_pseudo" + "_real" + ".csv", "w")
             elif ft == 6:
-                file = open(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
+                file = open(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                             + "_real" + ".csv", "w")
             elif ft == 7:
                 file = open(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
@@ -412,7 +419,7 @@ if __name__ == '__main__':
                 fig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                             + "_pseudo" + "_real" + ".png", dpi=300, bbox_inches='tight')
             elif ft == 6:
-                fig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
+                fig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                             + "_real" + ".png", dpi=300, bbox_inches='tight')
             elif ft == 7:
                 fig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
@@ -469,7 +476,7 @@ if __name__ == '__main__':
                 scfig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
                               + "_pseudo" + "_real" + "_corrected.png", dpi=300, bbox_inches='tight')
             elif ft == 6:
-                scfig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + pseudo_qty
+                scfig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
                               + "_real" + "_corrected.png", dpi=300, bbox_inches='tight')
             elif ft == 7:
                 scfig.savefig(config.STAT_PATH + test_set + "_" + names[j] + "_on_" + model_name + "_" + real_qty
