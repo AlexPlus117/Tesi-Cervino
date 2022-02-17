@@ -125,6 +125,7 @@ if __name__ == '__main__':
 
     # TESTING ROUTINE
     elif parser["settings"].getint("operation") == 2:
+
         # declaring placeholder to be printed when no fine tuning is executed
         pseudo_qty = "no pseudo labels"
         real_qty = "no real labels"
