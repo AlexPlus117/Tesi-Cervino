@@ -211,7 +211,7 @@ if __name__ == '__main__':
 
                     percentage = float(parser["settings"].get("pseudo_percentage"))
                     pseudo_qty = str(percentage * 100) + "%"
-                    real_qty = str(round(1 - percentage, 1) * 100) + "%"
+                    real_qty = str(round((1 - percentage) * 100, 1)) + "%"
                     tic_extraction = time.time()
                     data_used, labels_used = pu.pseudo_plus_labels_by_percentage_sam(pseudo_dict, percentage, img_label)
                     toc_extraction = time.time()
@@ -221,7 +221,7 @@ if __name__ == '__main__':
                     # selecting only real labels discarded from the extraction of pseudo labels by percentage
 
                     percentage = float(parser["settings"].get("pseudo_percentage"))
-                    real_qty = str(round(1 - percentage, 1) * 100) + "%"
+                    real_qty = str(round((1 - percentage) * 100, 1)) + "%"
                     tic_extraction = time.time()
                     data_used, labels_used = pu.labels_by_percentage_sam(pseudo_dict, percentage, img_label)
                     toc_extraction = time.time()
