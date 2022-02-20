@@ -137,6 +137,7 @@ if __name__ == '__main__':
         epochs = "-"
         pseudo_accuracy = "-"
         pseudo_accuracy_corr = "-"
+        type_execution = "no ft"
 
         # dataset loading
         first_img, second_img, labels, names = dp.load_dataset(test_set, parser)
