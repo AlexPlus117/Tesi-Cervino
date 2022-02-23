@@ -302,7 +302,7 @@ La funzione **pseudo_plus_labels_by_neighborhood(pseudo_dict, img_label, radius)
 La funzione **labels_by_neighborhood(pseudo_dict, img_label, radius)** è utilizzata per applicare la configurazione 6 di fine tuning.<br>
 La funzione **labels_by_percentage_uncertainty(model, pairs, img_label, percentage)** è utilizzata per applicare la configurazione 7 di fine tuning.<br>
 La funzione **labels_by_percentage_k_means_random(img_label, percentage, cluster_path)** è utilizzata per applicare la configurazione 8 di fine tuning.<br>
-La funziome **labels_by_percentage_k_means_uncertainty(img_label, percentage, cluster_path, model, pairs)** è utilizzata per applicare la configurazione 9 di fine tuning.
+La funzione **labels_by_percentage_k_means_uncertainty(img_label, percentage, cluster_path, model, pairs)** è utilizzata per applicare la configurazione 9 di fine tuning.
 
 #### siamese.py
 Questo modulo contiene tutte le funzioni principali utili alla costruzione, apprendimento e *fine tuning* del modello di Rete Siamese.<br>
