@@ -2,7 +2,7 @@
 
 Repository per il progetto di tesi "Sintesi di un algoritmo di Active Learning per Change Detection in immagini multispettrali bi-temporali", A.A. 2020/2021.
 
-il dataset utilizzato è reperibile al seguente link: https://cutt.ly/NbDeLgT
+Il dataset utilizzato è reperibile al seguente link: https://cutt.ly/NbDeLgT
 ## Struttura del repository
 
     
