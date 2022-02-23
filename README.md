@@ -13,7 +13,6 @@ Il dataset utilizzato è reperibile al seguente link: https://cutt.ly/NbDeLgT
         │    │  │     ├ cluster             # contiene i dizionari dei cluster serializzati per le coppie del dataset Onera (test)
         │    │  │     └ pseudo              # contiene le pseudo-etichette selezionate per le coppie del dataset Onera (test)
         │    │  └ oneratrain                # locazione del dataset Onera (train)
-        │    │        ├ cluster             # contiene i dizionari dei cluster serializzati per le coppie del dataset Onera (train)
         │    │        └ pseudo              # contiene le pseudo-etichette selezionate per le coppie del dataset Onera (train)
         │    ├ model                        # locazione per il salvataggio e il caricamento dei modelli appresi
         │    │  └ model.old 		# contiene tutti i modelli ricavati
