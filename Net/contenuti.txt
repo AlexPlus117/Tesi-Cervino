@@ -1,91 +1,43 @@
 Contenuti di data:
 	data è la cartella utilizzata dagli script come contenitore dei dataset non processati.
-	Ciascuna sottocartella, infatti contiene un dataset. Attualmente sono presenti le sottocartelle "bayarea" e "santabarbata".
-	Dentro ciascuna sottocartella il dataset è suddiviso in quattro cartelle, una contenente le immagini "before", una le immaginin "after"
-	una le etichette ("label") e una le pseudo-etichette ("pseudo").
+	Ciascuna sottocartella infatti contiene un dataset. Attualmente sono presenti le sottocartelle "oneratrain" e "oneratest".
+	Dentro ciascuna sottocartella il dataset è suddiviso in quattro cartelle, una contenente le immagini "before", una le immagini "after"
+	una le etichette ("label") e una le pseudo-etichette ("pseudo"). Nella cartella dedicata al dataset "oneratest" è anche presente la sottocartella "cluster", che raccoglie i dizionari di cluster serializzati per tutte le coppie di immagini testate. 
 	Ciascuna coppia di immagini deve essere un file (o una cartella contenente i valori delle varie bande) con lo stesso nome per le immagini che la costituiscono,
 	per le etichette e per le pseudo-etichette
 
 Contenuti di model:
 	model è la cartella utilizzata per caricare o salvare i modelli di Rete Siamese creati. All'interno è presente model.old, 
-	che presenta tutti i modelli creati nel corso degli esperimenti effettuati. Ciascun modello è serializzato come una coppia di file
-	nomemodello.h5 e nomemodello_param.pickle.
+	che presenta tutti i modelli creati nel corso degli esperimenti effettuati.
 
 	Contenuti di model.old:
-	model.old è organizzata in un sistema di sottocartelle:
-	"1. Esperimenti senza hyperas":
-		contiene i modelli ottenuti prima di implementare la ricerca Hyperas. Le reti presentano 3 layer da 224, 128 e 64 neuroni apprese in 10 epoche
-		con una batch size di 64
-	"2. Struttura base + dropout (no Otsu)":
-		contiene i modelli "base" del primo esperimento con Hyperas. Le reti presentano 3 layer da 224, 128 e 64 neuroni, inframmezzate da 2 layer di dropout e utilizzando
-		margine per la loss pari a 1 e soglia di conversione fissa a 0.5. Questo esperimento presenta ottimizzazione di batch size, learning rate e dropout rates (come per i successvi) avvenuto in 20 iterate, ciascuna da massimo 150 epoche.
-	"3. Struttura base + dropout + margine corretto + Otsu":
-		contiene i modelli ottenuti con il secondo esperimento Hyperas. La differenza con l'esperimento precedente sta nell'aver utilizzato anche il margine pi/2
-		per le strutture con SAM e la soglia otsu per il calcolo delle metriche di validation e test. Contiene anche un esperimento con il gradient clipping (clip) e 
-		uno con il rescaling dei risultati della SAM in [0,1] (resc), eseguiti per cercare di stabilizzare tali modelli.
-	"4. Scelta dei neuroni":
-		Contiene i modelli ottenuti facendo ottimizzare anche il numero dei neuroni tra 256, 128, 64. Da questo esperimento le iterate sono state aumentate da 20 a 30.
-	"5. Scelta dei neuroni + Quarto layer":
-		Contiene i modelli ottenuti facendo ottimizzare il numero di neuroni per layer e aggiungendo un quarto layer con attivazione sigmoidale da 512 neuroni.
-	"6. Scelta decrescente neuroni":
-		Contiene i modelli ottenuti facendo ottimizzare il numero di neuroni in ordine decrescente, scegliendo tra 512 e 256 per il primo livello, 256 e 128 per il secondo,
-		128 e 64 per il terzo.
-	"7. Scelta decrescente neuroni + Quarto layer":
-		Contiene i modelli ottenuti facendo ottimizzare il numero di neuroni in ordine decrescente e aggiungendo il quarto layer con attivazione sigmoidale da 512 neuroni.
-	"8. Struttura base + Quarto layer":
-		Contiene i modelli con struttura pari a quella dei modelli in cartella 3. più il quarto layer con attivazione sigmoidale da 512 neuroni.
-	"9. No rescaling (SAM)":
-		Contiene i modelli appresi con distanza SAM e struttura pari a quella dei modelli in cartella 3, ma senza applicare il rescaling sui dati di input.
-	"10. No rescaling + Quarto layer (SAM)":
-		Contiene i modelli appresi con distanza SAM e struttura pari a quella dei modelli in cartella 8, ma senza applicare il rescaling sui dati di input.
-	"11. L2 Regularization (ED)":
-		Contiene il modello appreso con distanza euclidea e struttura pari a quella dei modelli in cartella 3, ma con un regolarizzatore L2 sul terzo layer.
-	"12. Struttura base + Batch Size aumentata (SAM)":
-		Contiene i modelli appresi con la struttura pari a quella dei modelli in cartella 3, ma facendo scegliere la batch size tra 128, 256 e 512.
-		Da questo esperimento le iterate sono state aumentate da 30 a 50.
-	"13. Struttura base + Batch Size aumentata + dropout diminuito (SAM)"
-		Contiene i modelli appresi come quelli in cartella 12, ma facendo scegliere il dropout rate in [0,0.25] invece che in [0,0.5]
-	"14. Struttura selezionata su dataset multispettrali"
-		contiene i modelli appresi sulle immagini dell'onera dataset con la struttura selezionata per il fine tuning
-		ovvero quella descritta per la cartella "2.". i modelli con suffisso "medium" hanno numero di neuroni nei
-		tre livelli pari a 32/16/8, mentre i modelli con suffisso "small" hanno numero di neuroni 13/8/4.
-		Inoltre sono suddivisi in base alla coppia di immagini scelte per il training
-	"modelli selezionati":
-		Contiene una copia dei modelli selezionati per il fine tuning.
+		15 sottocartelle contenenti i modelli dei test effettuati dal collega Dell'Olio.
+		"MODELLI MULTISPETTRALI ADDESTRATI":
+			Contiene i modelli multispettrali addestrati dalle coppie Abu Dhabi, Beihai, Beirut, Cupertino e Las Vegas.
+		"MODELLI MULTISPETTRALI DOPO FT":
+			Contiene tutti i modelli aggiornati dopo l'applicazione delle diverse configurazioni di fine tuning alla rete neurale Siamese.
+	
 		
 Contenuti di stat:
 	stat è la cartella utilizzata per salvare i .csv e i plot sui risultati del training e dei test. All'interno è presente stat.old, 
-	che presenta tutti i file contententi le statistiche salvate degli esperimenti effettuati.
+	che presenta tutti i file contenenti le statistiche salvate degli esperimenti effettuati.
 	
 	contenuti di stat.old:
-	stat.old è organizzata in un sistema di sottocartelle simile a quello di model.old. Sono infatti presenti cartelle con lo stesso nome delle cartelle dalla 1 alla 14.
-	La cartella 1. contiene solamente i file con overall accuracy e confusion matrix ottenuta durante i test.
-	Le cartelle dalla 2 alla 14 contengono la sottocartella "training stat" che contiene il nomemodello_stats.csv generato a seguito della rispettiva fase di training.
-	oltre a tale sottocartella presentano poi un file .csv per ogni test che contiene le statistiche e due file di plot delle predizioni con e senza correzione spaziale.
-	generalmente tali file hanno nome del tipo testdataset_[nomeimmagine_]on_nomemodello[_suffisso]. Il "suffisso" ditingue i plot con correzione spaziale (corrected) e 
-	le heatmap (heatmap), presenti a partire dalla cartella 3.
-	Alcune di queste cartelle potrebbero presentare delle sottocartelle che raggruppano gli esperimenti per coppia (modello, test set).
-	Le cartelle aggiuntive presenti sono:
-	"15. Risultati pseudo-etichette": 
-		Contiene tre sottocartelle:
-			"Plot raggio 2-5": contiene tutti i plot delle best pseudo-etichette estratte per vicinato con raggio variabile da 2 a 5.
-			"pseudo plot any%": contieene tutti i plot delle best pseudo-etichette estratte per percentuale dal 10% al 90% a scaglioni di 10%.
-			"pseudo_stat": raccoglie i file .csv e le mappe (con e senza correzione) delle pseudo etichette generate con distanza SAM o euclidea (ED), con o senza rescaling (rescaling_True e rescaling_False) per ciascuna immagine
-	"16. Risultati fine tuning":
-		Contiene quattro sottocartelle:
-			"fine tuning.old": contiene i file .csv (parziali) e i plot della mappe eseguiti prima di selezionare solamente i modelli con distanza euclidea.
-			Anche questa cartella è suddivisa in sottocartelle per modello, le quali hanno risultati suddivisi per metodo di estrazione. In caso dei modelli SAM
-			sono anche prima suddivisi per dimensione della batch size utilizzata, in quanto si è tentato di eseguire fine tuning con una batch size maggiore
-			rispetto a quella di training. Tutti questi risultati non sono rientrati nell'elaborato finale, ma si sono voluti conservare.
-			"modelli multispettrali": raccoglie statistiche di tuning + test e mappe dei modelli con e senza
-			fine tuning dei modelli multispettrali. E' suddiviso in sottocartelle come per il dataset iperspettrali
-			(vedi cartelle successive)
-			"modelli selezionati 100% tuning": raccoglie statistiche di tuning + test e mappe dei modelli con fine tuining con tutte le pseudo-etichette.
-			"modelli selezionati con percentuale": raccoglie statistiche di tuning + test e mappe dei modelli con fine tuining con le pseudo-etichette estratte 
-			per percentuale.
-			"modelli selezionati con raggio": raccoglie statistiche di tuning + test e mappe dei modelli con fine tuining con le pseudo-etichette estratte 
-			per vicinato.
-			"modelli selezionati no fine tuning": raccoglie statistiche di tuning + test e mappe dei modelli senza fine tuning
-	
-Contenuti di .idea, __pycache__, venv:
-	contengono cartelle e file di supporto all'IDE pycharm
+		16 sottocartelle con i risultati dei test eseguiti dal collega Dell'Olio
+		"RISULTATI MULTISPETTRALI":
+			Contiene 5 sottocartelle:
+				"Test con modello Abu Dhabi": contiene i file .csv, le mappe di cambiamento e le mappe di calore dei test effettuati tramite il modello
+				addestrato su Abu Dhabi e testato su Beihai, Beirut, Cupertino e Las Vegas. Per ogni coppia di immagini testata ci sono altre 8 sottocartelle,
+				ognuna per configurazione di fine tuning utilizzata.
+				"Test con modello Beihai": contiene i file .csv, le mappe di cambiamento e le mappe di calore dei test effettuati tramite il modello
+				addestrato su Beihai e testato su Abu Dhabi, Beirut, Cupertino e Las Vegas. Per ogni coppia di immagini testata ci sono altre 8 sottocartelle,
+				ognuna per configurazione di fine tuning utilizzata.
+				"Test con modello Beirut": contiene i file .csv, le mappe di cambiamento e le mappe di calore dei test effettuati tramite il modello
+				addestrato su Beirut e testato su Abu Dhabi, Beihai, Cupertino e Las Vegas. Per ogni coppia di immagini testata ci sono altre 8 sottocartelle,
+				ognuna per configurazione di fine tuning utilizzata.
+				"Test con modello Cupertino": contiene i file .csv, le mappe di cambiamento e le mappe di calore dei test effettuati tramite il modello
+				addestrato su Cupertino e testato su Abu Dhabi, Beihai, Beirut e Las Vegas. Per ogni coppia di immagini testata ci sono altre 8 sottocartelle,
+				ognuna per configurazione di fine tuning utilizzata.
+				"Test con modello Las Vegas": contiene i file .csv, le mappe di cambiamento e le mappe di calore dei test effettuati tramite il modello
+				addestrato su Las Vegas e testato su Abu Dhabi, Beihai, Beirut e Cupertino. Per ogni coppia di immagini testata ci sono altre 8 sottocartelle,
+				ognuna per configurazione di fine tuning utilizzata.
