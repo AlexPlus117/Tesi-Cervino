@@ -211,7 +211,7 @@ In questo modo sarà avviato il caricamento e pre-processing del test dataset, i
 In *stat* verranno generati un file .csv contenente le statistiche relative al testing con e senza correzione spaziale, una mappa del calore che rappresenta le distanze calcolate dalla rete per la coppia di immagini e due immagini contenenti le mappe predette (con e senza correzione). Queste due presentano la mappa predetta (*Total Prediction*), la stessa con una maschera che copra i pixel ignoti (*Comparable Preditiction*) e la *ground truth*. Il codice cromatico stabilisce che i pixel rossi indichino cambiamento, quelli blu non-cambiamento e quelli gialli non posseggono verità di fondo. 
 
 ### Generazione dei cluster
-Impostare il valore di *test_set* con il nome del dataset da utilizzare per generare i cluster, il valore di *apply_rescaling* a *True* o *False* in caso si voglia o meno applicare il rescaling sul dataset in input, il valore *operation = 1*.
+Impostare il valore *operation = 1*, il valore di *test_set* con il nome del dataset da utilizzare per generare i cluster, il valore di *apply_rescaling* a *True* o *False*, in caso si voglia o meno applicare il rescaling sul dataset in input.
 
 A questo punto sarà possibile lanciare main.py con il comando precedente.
 
